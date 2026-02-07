@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: llm_course
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "15432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d llm_course"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_NAME: llm-course-backend
+      APP_ENV: development
+      APP_PORT: 10723
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/llm_course
+      JWT_SECRET: change-me-in-prod
+      ACCESS_TOKEN_EXPIRE_SECONDS: 3600
+      REFRESH_TOKEN_EXPIRE_SECONDS: 2592000
+      EMAIL_CODE_EXPIRE_SECONDS: 300
+      EMAIL_SENDER_BACKEND: console
+      SMTP_HOST: ""
+      SMTP_PORT: 587
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_USE_TLS: "true"
+      SMTP_FROM_EMAIL: ""
+      AUTH_CODE_WINDOW_SECONDS: 600
+      AUTH_CODE_MAX_PER_EMAIL_WINDOW: 5
+      AUTH_CODE_MAX_PER_IP_WINDOW: 20
+      AUTH_CODE_COOLDOWN_SECONDS: 30
+      SEED_DATA: "true"
+    ports:
+      - "10723:10723"
+
+volumes:
+  pg_data:
