@@ -38,7 +38,7 @@ llm-course-backend/
 │   └── models.py          # SQLAlchemy models
 ├── docker-compose.yml
 ├── Dockerfile
-├── requirements.txt
+├── pyproject.toml
 └── .env.example
 ```
 
@@ -61,21 +61,21 @@ After startup:
 cp .env.example .env
 ```
 
-2. Install dependencies:
+2. Install dependencies with `uv`:
 ```bash
-pip install -r requirements.txt
+uv sync --dev
 ```
 
 3. Ensure Postgres is running and `DATABASE_URL` points to it.
 
 4. Apply migrations:
 ```bash
-alembic upgrade head
+uv run alembic upgrade head
 ```
 
 5. Start API:
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 10723 --reload
+uv run uvicorn app.main:app --host 0.0.0.0 --port 10723 --reload
 ```
 
 ## Environment Variables
@@ -180,12 +180,12 @@ Course/content:
 
 Install test dependencies:
 ```bash
-pip install -r requirements-dev.txt
+uv sync --dev
 ```
 
 Run tests against a running backend:
 ```bash
-RUN_INTEGRATION=1 BASE_URL=http://localhost:10723 pytest -q tests
+RUN_INTEGRATION=1 BASE_URL=http://localhost:10723 uv run pytest -q tests
 ```
 
 ## Dev Notes
