@@ -14,6 +14,10 @@ settings = get_settings()
 
 
 def consume_verification_code(db: Session, email: str, purpose: str, code: str) -> None:
+    # Dev-only bypass for local testing without SMTP/domain.
+    if settings.app_env != "production" and settings.dev_fixed_email_code and code == settings.dev_fixed_email_code:
+        return
+
     stmt = (
         select(EmailVerificationCode)
         .where(

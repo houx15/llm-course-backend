@@ -87,6 +87,7 @@ Main variables (see `.env.example`):
 - `ACCESS_TOKEN_EXPIRE_SECONDS=3600`
 - `REFRESH_TOKEN_EXPIRE_SECONDS=2592000`
 - `EMAIL_CODE_EXPIRE_SECONDS=300`
+- `DEV_FIXED_EMAIL_CODE=` (optional, non-production only)
 - `EMAIL_SENDER_BACKEND=console|smtp`
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_USE_TLS`, `SMTP_FROM_EMAIL`
 - `AUTH_CODE_WINDOW_SECONDS=600`
@@ -97,6 +98,11 @@ Main variables (see `.env.example`):
 
 Production requirement:
 - `APP_ENV=production` must use `EMAIL_SENDER_BACKEND=smtp`
+- `DEV_FIXED_EMAIL_CODE` should be empty in production.
+
+Dev convenience:
+- If `DEV_FIXED_EMAIL_CODE` is set and `APP_ENV!=production`, register/login accepts this code directly.
+- This is temporary for local/dev testing before SMTP/domain is ready.
 
 ## Seed Data
 

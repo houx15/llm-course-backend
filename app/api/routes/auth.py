@@ -62,6 +62,8 @@ def request_email_code(payload: EmailCodeRequest, request: Request, db: Session 
         db.add(item)
 
     plain_code = generate_email_code()
+    if settings.app_env != "production" and settings.dev_fixed_email_code:
+        plain_code = settings.dev_fixed_email_code
     code_row = EmailVerificationCode(
         email=email,
         purpose=payload.purpose,

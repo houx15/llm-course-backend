@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     access_token_expire_seconds: int = 3600
     refresh_token_expire_seconds: int = 30 * 24 * 3600
     email_code_expire_seconds: int = 300
+    dev_fixed_email_code: str = ""
     email_sender_backend: str = "console"
     smtp_host: str = ""
     smtp_port: int = 587
