@@ -30,6 +30,20 @@ class Settings(BaseSettings):
 
     seed_data: bool = True
 
+    # OSS / CDN (bundle delivery)
+    oss_enabled: bool = False
+    oss_region_id: str = ""
+    oss_endpoint: str = ""
+    oss_bucket_name: str = ""
+    oss_cdn_domain: str = ""
+    oss_access_key_id: str = ""
+    oss_access_key_secret: str = ""
+    oss_role_arn: str = ""
+    oss_sts_duration_seconds: int = 1800
+    oss_download_signed_url_enabled: bool = False
+    oss_download_url_expire_seconds: int = 900
+    oss_bundle_prefix: str = "bundles/"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 

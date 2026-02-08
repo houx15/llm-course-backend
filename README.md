@@ -95,6 +95,18 @@ Main variables (see `.env.example`):
 - `AUTH_CODE_MAX_PER_IP_WINDOW=20`
 - `AUTH_CODE_COOLDOWN_SECONDS=30`
 - `SEED_DATA=true`
+- `OSS_ENABLED=false`
+- `OSS_REGION_ID=oss-cn-...`
+- `OSS_ENDPOINT=oss-cn-....aliyuncs.com`
+- `OSS_BUCKET_NAME=...`
+- `OSS_CDN_DOMAIN=...` (optional)
+- `OSS_ACCESS_KEY_ID=...` (for signed URLs / STS)
+- `OSS_ACCESS_KEY_SECRET=...` (for signed URLs / STS)
+- `OSS_ROLE_ARN=...` (for STS)
+- `OSS_STS_DURATION_SECONDS=1800`
+- `OSS_DOWNLOAD_SIGNED_URL_ENABLED=false`
+- `OSS_DOWNLOAD_URL_EXPIRE_SECONDS=900`
+- `OSS_BUNDLE_PREFIX=bundles/`
 
 Production requirement:
 - `APP_ENV=production` must use `EMAIL_SENDER_BACKEND=smtp`
@@ -130,6 +142,8 @@ When `SEED_DATA=true`, startup inserts:
 - `GET /v1/courses/{course_id}/chapters`
 - `POST /v1/updates/check-app`
 - `POST /v1/updates/check-chapter`
+- `POST /v1/oss/download-credentials`
+- `POST /v1/oss/resolve-artifact-url`
 - `POST /v1/progress/chapter`
 - `POST /v1/analytics/events:ingest`
 
