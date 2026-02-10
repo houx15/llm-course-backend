@@ -10,6 +10,7 @@ def test_p0_core_flow(client, integration_enabled: bool):
         pytest.skip("Set RUN_INTEGRATION=1 to execute integration tests")
 
     email = f"student_{uuid4().hex[:8]}@example.com"
+    password = f"Pwd-{uuid4().hex[:10]}"
     device_id = f"dev-{uuid4().hex[:8]}"
 
     # 1) request register code
@@ -29,6 +30,7 @@ def test_p0_core_flow(client, integration_enabled: bool):
         json={
             "email": email,
             "verification_code": code,
+            "password": password,
             "display_name": "P0 Tester",
             "device_id": device_id,
         },
@@ -37,6 +39,17 @@ def test_p0_core_flow(client, integration_enabled: bool):
     auth = resp.json()
     access_token = auth["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
+
+    # 2.1) login with password
+    resp = client.post(
+        "/v1/auth/login",
+        json={
+            "email": email,
+            "password": password,
+            "device_id": device_id,
+        },
+    )
+    assert resp.status_code == 200, resp.text
 
     # 3) join course
     resp = client.post("/v1/courses/join", json={"course_code": "SOC101"}, headers=headers)

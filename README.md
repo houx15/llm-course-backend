@@ -5,7 +5,7 @@ FastAPI + PostgreSQL backend for the desktop Socratic multi-agent learning platf
 ## Scope
 
 This backend is responsible for:
-- Email-code auth and device session tokens
+- Email/password auth and device session tokens
 - Course enrollment and chapter listing
 - Bundle update checks (`check-app`, `check-chapter`)
 - Progress sync and analytics ingestion
@@ -113,8 +113,12 @@ Production requirement:
 - `DEV_FIXED_EMAIL_CODE` should be empty in production.
 
 Dev convenience:
-- If `DEV_FIXED_EMAIL_CODE` is set and `APP_ENV!=production`, register/login accepts this code directly.
+- If `DEV_FIXED_EMAIL_CODE` is set and `APP_ENV!=production`, register accepts this code directly.
 - This is temporary for local/dev testing before SMTP/domain is ready.
+
+Auth flow:
+- Register: request email code (`purpose=register`) -> register with `email + verification_code + password`.
+- Login: `email + password` (no email code).
 
 ## Seed Data
 
@@ -184,6 +188,8 @@ Auth/security:
 - `VERIFICATION_CODE_NOT_FOUND`
 - `VERIFICATION_CODE_EXPIRED`
 - `INVALID_VERIFICATION_CODE`
+- `INVALID_CREDENTIALS`
+- `UNSUPPORTED_AUTH_FLOW`
 - `INVALID_REFRESH_TOKEN`
 - `DEVICE_MISMATCH`
 - `REFRESH_TOKEN_EXPIRED`
@@ -207,6 +213,22 @@ Run tests against a running backend:
 ```bash
 RUN_INTEGRATION=1 BASE_URL=http://localhost:10723 uv run pytest -q tests
 ```
+
+## Create Test User (Dev)
+
+After `alembic upgrade head`, you can create/update a login user directly:
+
+```bash
+uv run python app/scripts/create_test_user.py \
+  --email student@example.com \
+  --password StrongPass123 \
+  --name "Test Student" \
+  --course-code SOC101
+```
+
+This script will:
+- create the user if missing, or update display name/password if existing
+- optionally enroll the user into the given active course
 
 ## Dev Notes
 

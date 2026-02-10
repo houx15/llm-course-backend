@@ -3,7 +3,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 class EmailCodeRequest(BaseModel):
     email: EmailStr
-    purpose: str = Field(pattern="^(register|login)$")
+    purpose: str = Field(pattern="^(register)$")
 
 
 class EmailCodeResponse(BaseModel):
@@ -12,10 +12,17 @@ class EmailCodeResponse(BaseModel):
     dev_code: str | None = None
 
 
-class RegisterOrLoginRequest(BaseModel):
+class RegisterRequest(BaseModel):
     email: EmailStr
     verification_code: str = Field(min_length=4, max_length=12)
+    password: str = Field(min_length=8, max_length=128)
     display_name: str | None = Field(default=None, min_length=1, max_length=120)
+    device_id: str = Field(min_length=1, max_length=255)
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
     device_id: str = Field(min_length=1, max_length=255)
 
 

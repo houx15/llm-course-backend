@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.error_codes import ErrorCode
 from app.core.errors import ApiError
-from app.core.security import create_access_token, generate_email_code, hash_text, now_utc
+from app.core.security import create_access_token, generate_email_code, hash_password, hash_text, now_utc, verify_password
 from app.db.session import get_db
 from app.models import DeviceSession, EmailVerificationCode, User
 from app.schemas.auth import (
@@ -18,7 +18,8 @@ from app.schemas.auth import (
     LogoutResponse,
     RefreshRequest,
     RefreshResponse,
-    RegisterOrLoginRequest,
+    RegisterRequest,
+    LoginRequest,
 )
 from app.services.auth_service import consume_verification_code, issue_session_tokens
 from app.services.email_sender import send_verification_code
@@ -41,11 +42,12 @@ def _extract_client_ip(request: Request) -> str:
 def request_email_code(payload: EmailCodeRequest, request: Request, db: Session = Depends(get_db)) -> EmailCodeResponse:
     email = payload.email.lower().strip()
 
+    if payload.purpose != "register":
+        raise ApiError(status_code=400, code=ErrorCode.UNSUPPORTED_AUTH_FLOW, message="Email code is only supported for register")
+
     user = db.execute(select(User).where(User.email == email)).scalars().first()
     if payload.purpose == "register" and user:
         raise ApiError(status_code=400, code=ErrorCode.EMAIL_ALREADY_REGISTERED, message="Email already registered")
-    if payload.purpose == "login" and not user:
-        raise ApiError(status_code=404, code=ErrorCode.USER_NOT_FOUND, message="User not found")
 
     check_and_record_email_code_request(db, email=email, client_ip=_extract_client_ip(request))
 
@@ -89,7 +91,7 @@ def request_email_code(payload: EmailCodeRequest, request: Request, db: Session 
 
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterOrLoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
+def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> AuthResponse:
     email = payload.email.lower().strip()
 
     exists = db.execute(select(User).where(User.email == email)).scalars().first()
@@ -99,7 +101,12 @@ def register(payload: RegisterOrLoginRequest, db: Session = Depends(get_db)) -> 
     consume_verification_code(db, email=email, purpose="register", code=payload.verification_code)
 
     display_name = payload.display_name or email.split("@")[0]
-    user = User(email=email, display_name=display_name, status="active")
+    user = User(
+        email=email,
+        display_name=display_name,
+        password_hash=hash_password(payload.password),
+        status="active",
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -108,13 +115,14 @@ def register(payload: RegisterOrLoginRequest, db: Session = Depends(get_db)) -> 
 
 
 @router.post("/login", response_model=AuthResponse)
-def login(payload: RegisterOrLoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
+def login(payload: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
     email = payload.email.lower().strip()
     user = db.execute(select(User).where(User.email == email)).scalars().first()
     if not user:
         raise ApiError(status_code=404, code=ErrorCode.USER_NOT_FOUND, message="User not found")
 
-    consume_verification_code(db, email=email, purpose="login", code=payload.verification_code)
+    if not user.password_hash or not verify_password(payload.password, user.password_hash):
+        raise ApiError(status_code=401, code=ErrorCode.INVALID_CREDENTIALS, message="Invalid email or password")
     return issue_session_tokens(db, user=user, device_id=payload.device_id)
 
 
