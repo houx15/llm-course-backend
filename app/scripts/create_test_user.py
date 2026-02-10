@@ -2,6 +2,13 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
+
+# Allow running this file directly: `python app/scripts/create_test_user.py`
+if __package__ in (None, ""):
+    repo_root = Path(__file__).resolve().parents[2]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
 
 from sqlalchemy import select
 
