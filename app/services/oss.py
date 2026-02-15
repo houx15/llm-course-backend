@@ -101,6 +101,52 @@ class OSSService:
         local_path.write_bytes(file_content)
         return f"/uploads/{key}"
 
+    async def delete_bundle_artifact(self, artifact: str) -> None:
+        """
+        Best-effort deletion for cleanup paths.
+        Accepts object key or local /uploads path.
+        """
+        value = str(artifact or "").strip()
+        if not value:
+            return
+
+        key = value
+        if value.startswith("/uploads/"):
+            key = value[len("/uploads/") :]
+        elif value.startswith("uploads/"):
+            key = value[len("uploads/") :]
+
+        if self.is_enabled():
+            s = self._settings
+            if not (s.oss_access_key_id and s.oss_access_key_secret):
+                return
+            try:
+                import oss2
+            except Exception:
+                return
+            try:
+                auth = oss2.Auth(s.oss_access_key_id, s.oss_access_key_secret)
+                bucket = oss2.Bucket(auth, f"https://{s.oss_endpoint}", s.oss_bucket_name)
+                bucket.delete_object(key)
+            except Exception:
+                return
+            return
+
+        local_path = Path("uploads") / key
+        try:
+            if local_path.exists():
+                local_path.unlink()
+            # Best-effort prune empty folders under uploads/.
+            parent = local_path.parent
+            uploads_root = Path("uploads").resolve()
+            while parent.exists() and parent != uploads_root:
+                if any(parent.iterdir()):
+                    break
+                parent.rmdir()
+                parent = parent.parent
+        except Exception:
+            return
+
     def resolve_download_url(self, artifact: str, expires_seconds: int | None = None) -> str:
         """
         Resolve an artifact reference to a downloadable URL.

@@ -61,6 +61,7 @@ async def upload_and_publish(
 ) -> BundleRelease:
     sha256 = hashlib.sha256(file_content).hexdigest()
     size_bytes = len(file_content)
+    artifact_url: str | None = None
     request = BundlePublishRequest(
         bundle_type=bundle_type,
         scope_id=scope_id,
@@ -105,9 +106,13 @@ async def upload_and_publish(
         db.commit()
     except IntegrityError:
         db.rollback()
+        if artifact_url:
+            await oss_service.delete_bundle_artifact(artifact_url)
         _raise_conflict()
     except Exception:
         db.rollback()
+        if artifact_url:
+            await oss_service.delete_bundle_artifact(artifact_url)
         raise
 
     db.refresh(release)

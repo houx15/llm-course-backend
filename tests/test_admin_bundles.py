@@ -1,4 +1,5 @@
 import hashlib
+import gzip
 import os
 from uuid import uuid4
 
@@ -43,6 +44,10 @@ def _register_and_login(client):
     assert register_resp.status_code == 201, register_resp.text
     token = register_resp.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+def _gzip_payload(raw_bytes: bytes) -> bytes:
+    return gzip.compress(raw_bytes)
 
 
 def _enroll_and_get_course_chapter(client, user_headers: dict[str, str]) -> tuple[str, str]:
@@ -188,7 +193,7 @@ def test_admin_upload_computes_sha256_and_size(client, integration_enabled: bool
     _require_integration(integration_enabled)
     admin_headers = _admin_headers()
 
-    file_content = f"bundle-content-{uuid4().hex}".encode("utf-8")
+    file_content = _gzip_payload(f"bundle-content-{uuid4().hex}".encode("utf-8"))
     expected_sha = hashlib.sha256(file_content).hexdigest()
     expected_size = len(file_content)
     scope_id = f"shared_{uuid4().hex[:8]}"
@@ -222,8 +227,8 @@ def test_admin_upload_duplicate_does_not_overwrite_existing_artifact(client, int
 
     scope_id = f"dup_scope_{uuid4().hex[:8]}"
     version = f"4.0.{uuid4().hex[:4]}"
-    first_content = f"first-{uuid4().hex}".encode("utf-8")
-    second_content = f"second-{uuid4().hex}".encode("utf-8")
+    first_content = _gzip_payload(f"first-{uuid4().hex}".encode("utf-8"))
+    second_content = _gzip_payload(f"second-{uuid4().hex}".encode("utf-8"))
     first_sha = hashlib.sha256(first_content).hexdigest()
 
     first_upload = client.post(
