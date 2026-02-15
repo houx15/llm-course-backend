@@ -111,8 +111,6 @@ async def upload_and_publish(
         _raise_conflict()
     except Exception:
         db.rollback()
-        if artifact_url:
-            await oss_service.delete_bundle_artifact(artifact_url)
         raise
 
     db.refresh(release)
