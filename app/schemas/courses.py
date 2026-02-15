@@ -33,6 +33,7 @@ class ChapterItem(BaseModel):
     id: str
     chapter_code: str
     title: str
+    intro_text: str = ""
     status: str
     locked: bool
     order: int

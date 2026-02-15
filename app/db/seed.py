@@ -20,8 +20,22 @@ def seed_if_needed(db: Session) -> None:
     db.add(course)
     db.flush()
 
-    ch1 = CourseChapter(course_id=course.id, chapter_code="ch1_intro", title="Introduction", sort_order=1, is_active=True)
-    ch2 = CourseChapter(course_id=course.id, chapter_code="ch2_pandas", title="Pandas Basics", sort_order=2, is_active=True)
+    ch1 = CourseChapter(
+        course_id=course.id,
+        chapter_code="ch1_intro",
+        title="Introduction",
+        intro_text="Foundational concepts and workflow overview.",
+        sort_order=1,
+        is_active=True,
+    )
+    ch2 = CourseChapter(
+        course_id=course.id,
+        chapter_code="ch2_pandas",
+        title="Pandas Basics",
+        intro_text="Core data operations for social-science datasets.",
+        sort_order=2,
+        is_active=True,
+    )
     db.add_all([ch1, ch2])
 
     db.add_all(

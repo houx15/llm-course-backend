@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import urlparse
 import uuid
@@ -48,6 +49,57 @@ class OSSService:
         if s.oss_cdn_domain:
             return f"https://{s.oss_cdn_domain}/{key}"
         return self._oss_origin_url(key)
+
+    def _build_bundle_object_key(self, bundle_type: str, scope_id: str, version: str) -> str:
+        prefix = self._settings.oss_bundle_prefix.strip("/")
+        scope_path = PurePosixPath(scope_id.lstrip("/"))
+        if not scope_path.parts:
+            raise ValueError("Invalid scope_id")
+        if ".." in scope_path.parts:
+            raise ValueError("Invalid scope_id")
+        if "/" in bundle_type or "/" in version:
+            raise ValueError("Invalid bundle path")
+
+        if prefix:
+            path = PurePosixPath(prefix) / bundle_type / scope_path / version / "bundle.tar.gz"
+        else:
+            path = PurePosixPath(bundle_type) / scope_path / version / "bundle.tar.gz"
+        return str(path)
+
+    async def upload_bundle(
+        self,
+        file_content: bytes,
+        bundle_type: str,
+        scope_id: str,
+        version: str,
+    ) -> str:
+        """
+        Upload bundle tar.gz to OSS and return object key.
+        If OSS is disabled, store it under ./uploads and return a local static path.
+        """
+        key = self._build_bundle_object_key(bundle_type=bundle_type, scope_id=scope_id, version=version)
+
+        if self.is_enabled():
+            s = self._settings
+            if not (s.oss_access_key_id and s.oss_access_key_secret):
+                raise RuntimeError("OSS credentials are not configured")
+
+            try:
+                import oss2
+            except Exception as exc:  # pragma: no cover - depends on optional package
+                raise RuntimeError("oss2 is required for OSS upload") from exc
+
+            auth = oss2.Auth(s.oss_access_key_id, s.oss_access_key_secret)
+            bucket = oss2.Bucket(auth, f"https://{s.oss_endpoint}", s.oss_bucket_name)
+            result = bucket.put_object(key, file_content)
+            if not (200 <= int(getattr(result, "status", 500)) < 300):
+                raise RuntimeError("Failed to upload bundle to OSS")
+            return key
+
+        local_path = Path("uploads") / key
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path.write_bytes(file_content)
+        return f"/uploads/{key}"
 
     def resolve_download_url(self, artifact: str, expires_seconds: int | None = None) -> str:
         """

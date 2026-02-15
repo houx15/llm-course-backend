@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     auth_code_cooldown_seconds: int = 30
 
     seed_data: bool = True
+    admin_api_key: str = ""
 
     # OSS / CDN (bundle delivery)
     oss_enabled: bool = False

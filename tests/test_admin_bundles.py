@@ -1,0 +1,284 @@
+import hashlib
+import os
+from uuid import uuid4
+
+import pytest
+
+
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
+
+
+def _require_integration(integration_enabled: bool) -> None:
+    if not integration_enabled:
+        pytest.skip("Set RUN_INTEGRATION=1 to execute integration tests")
+
+
+def _admin_headers() -> dict[str, str]:
+    if not ADMIN_API_KEY:
+        pytest.skip("Set ADMIN_API_KEY to run admin bundle integration tests")
+    return {"X-Admin-Key": ADMIN_API_KEY}
+
+
+def _register_and_login(client):
+    email = f"admin_bundle_{uuid4().hex[:8]}@example.com"
+    password = f"Pwd-{uuid4().hex[:10]}"
+    device_id = f"dev-{uuid4().hex[:8]}"
+
+    code_resp = client.post("/v1/auth/request-email-code", json={"email": email, "purpose": "register"})
+    assert code_resp.status_code == 200, code_resp.text
+    code = code_resp.json().get("dev_code")
+    if not code:
+        pytest.skip("No dev_code available; run tests in development mode")
+
+    register_resp = client.post(
+        "/v1/auth/register",
+        json={
+            "email": email,
+            "verification_code": code,
+            "password": password,
+            "display_name": "Admin Bundle Tester",
+            "device_id": device_id,
+        },
+    )
+    assert register_resp.status_code == 201, register_resp.text
+    token = register_resp.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _enroll_and_get_course_chapter(client, user_headers: dict[str, str]) -> tuple[str, str]:
+    join_resp = client.post("/v1/courses/join", json={"course_code": "SOC101"}, headers=user_headers)
+    assert join_resp.status_code == 200, join_resp.text
+    course_id = join_resp.json()["course"]["id"]
+
+    chapters_resp = client.get(f"/v1/courses/{course_id}/chapters", headers=user_headers)
+    assert chapters_resp.status_code == 200, chapters_resp.text
+    chapter_code = chapters_resp.json()["chapters"][0]["chapter_code"]
+    return course_id, chapter_code
+
+
+@pytest.mark.integration
+def test_admin_publish_duplicate_and_updates_visibility(client, integration_enabled: bool):
+    _require_integration(integration_enabled)
+    admin_headers = _admin_headers()
+    user_headers = _register_and_login(client)
+    course_id, chapter_code = _enroll_and_get_course_chapter(client, user_headers)
+
+    app_version = f"9.9.{uuid4().hex[:4]}"
+    publish_payload = {
+        "bundle_type": "app_agents",
+        "scope_id": "core",
+        "version": app_version,
+        "artifact_url": f"https://cdn.example.com/bundles/app_agents/core/{app_version}/bundle.tar.gz",
+        "sha256": hashlib.sha256(app_version.encode("utf-8")).hexdigest(),
+        "size_bytes": 12345,
+        "is_mandatory": True,
+        "manifest_json": {},
+    }
+
+    publish_resp = client.post("/v1/admin/bundles/publish", json=publish_payload, headers=admin_headers)
+    assert publish_resp.status_code == 201, publish_resp.text
+
+    duplicate_resp = client.post("/v1/admin/bundles/publish", json=publish_payload, headers=admin_headers)
+    assert duplicate_resp.status_code == 409, duplicate_resp.text
+
+    check_app_resp = client.post(
+        "/v1/updates/check-app",
+        json={
+            "desktop_version": "0.1.0",
+            "sidecar_version": "0.1.0",
+            "installed": {"app_agents": "0.0.1", "experts_shared": "0.0.1"},
+        },
+        headers=user_headers,
+    )
+    assert check_app_resp.status_code == 200, check_app_resp.text
+    required = check_app_resp.json()["required"]
+    assert any(item["bundle_type"] == "app_agents" and item["version"] == app_version for item in required)
+
+    chapter_version = f"8.8.{uuid4().hex[:4]}"
+    chapter_scope = f"{course_id}/{chapter_code}"
+    chapter_publish_resp = client.post(
+        "/v1/admin/bundles/publish",
+        json={
+            "bundle_type": "chapter",
+            "scope_id": chapter_scope,
+            "version": chapter_version,
+            "artifact_url": f"https://cdn.example.com/bundles/chapter/{chapter_scope}/{chapter_version}/bundle.tar.gz",
+            "sha256": hashlib.sha256(chapter_scope.encode("utf-8")).hexdigest(),
+            "size_bytes": 23456,
+            "is_mandatory": True,
+            "manifest_json": {"required_experts": []},
+        },
+        headers=admin_headers,
+    )
+    assert chapter_publish_resp.status_code == 201, chapter_publish_resp.text
+
+    check_chapter_resp = client.post(
+        "/v1/updates/check-chapter",
+        json={
+            "course_id": course_id,
+            "chapter_id": chapter_code,
+            "installed": {"chapter_bundle": "0.0.1", "experts": {}},
+        },
+        headers=user_headers,
+    )
+    assert check_chapter_resp.status_code == 200, check_chapter_resp.text
+    chapter_required = check_chapter_resp.json()["required"]
+    assert any(item["bundle_type"] == "chapter" and item["version"] == chapter_version for item in chapter_required)
+
+
+@pytest.mark.integration
+def test_admin_list_filter_get_and_delete(client, integration_enabled: bool):
+    _require_integration(integration_enabled)
+    admin_headers = _admin_headers()
+
+    scope_id = f"data_inspector_{uuid4().hex[:8]}"
+    version = f"1.2.{uuid4().hex[:4]}"
+    publish_resp = client.post(
+        "/v1/admin/bundles/publish",
+        json={
+            "bundle_type": "experts",
+            "scope_id": scope_id,
+            "version": version,
+            "artifact_url": f"https://cdn.example.com/bundles/experts/{scope_id}/{version}/bundle.tar.gz",
+            "sha256": hashlib.sha256(scope_id.encode("utf-8")).hexdigest(),
+            "size_bytes": 34567,
+            "is_mandatory": False,
+            "manifest_json": {"platform": "darwin-arm64"},
+        },
+        headers=admin_headers,
+    )
+    assert publish_resp.status_code == 201, publish_resp.text
+    bundle_id = publish_resp.json()["id"]
+
+    list_resp = client.get(
+        "/v1/admin/bundles",
+        params={"bundle_type": "experts", "scope_id": scope_id, "limit": 20, "offset": 0},
+        headers=admin_headers,
+    )
+    assert list_resp.status_code == 200, list_resp.text
+    list_payload = list_resp.json()
+    assert list_payload["total"] >= 1
+    assert any(item["id"] == bundle_id for item in list_payload["bundles"])
+
+    get_resp = client.get(f"/v1/admin/bundles/{bundle_id}", headers=admin_headers)
+    assert get_resp.status_code == 200, get_resp.text
+    get_payload = get_resp.json()
+    assert get_payload["manifest_json"] == {"platform": "darwin-arm64"}
+
+    delete_resp = client.delete(f"/v1/admin/bundles/{bundle_id}", headers=admin_headers)
+    assert delete_resp.status_code == 204, delete_resp.text
+
+    missing_resp = client.get(f"/v1/admin/bundles/{bundle_id}", headers=admin_headers)
+    assert missing_resp.status_code == 404, missing_resp.text
+
+
+@pytest.mark.integration
+def test_admin_auth_missing_or_invalid_key(client, integration_enabled: bool):
+    _require_integration(integration_enabled)
+
+    missing_resp = client.get("/v1/admin/bundles")
+    assert missing_resp.status_code == 403, missing_resp.text
+
+    invalid_resp = client.get("/v1/admin/bundles", headers={"X-Admin-Key": "wrong-key"})
+    assert invalid_resp.status_code == 403, invalid_resp.text
+
+
+@pytest.mark.integration
+def test_admin_upload_computes_sha256_and_size(client, integration_enabled: bool):
+    _require_integration(integration_enabled)
+    admin_headers = _admin_headers()
+
+    file_content = f"bundle-content-{uuid4().hex}".encode("utf-8")
+    expected_sha = hashlib.sha256(file_content).hexdigest()
+    expected_size = len(file_content)
+    scope_id = f"shared_{uuid4().hex[:8]}"
+    version = f"3.0.{uuid4().hex[:4]}"
+
+    upload_resp = client.post(
+        "/v1/admin/bundles/upload",
+        headers=admin_headers,
+        data={
+            "bundle_type": "experts_shared",
+            "scope_id": scope_id,
+            "version": version,
+            "is_mandatory": "false",
+        },
+        files={"file": ("bundle.tar.gz", file_content, "application/gzip")},
+    )
+    assert upload_resp.status_code == 201, upload_resp.text
+    bundle_id = upload_resp.json()["id"]
+
+    get_resp = client.get(f"/v1/admin/bundles/{bundle_id}", headers=admin_headers)
+    assert get_resp.status_code == 200, get_resp.text
+    payload = get_resp.json()
+    assert payload["sha256"] == expected_sha
+    assert payload["size_bytes"] == expected_size
+
+
+@pytest.mark.integration
+def test_admin_upload_duplicate_does_not_overwrite_existing_artifact(client, integration_enabled: bool):
+    _require_integration(integration_enabled)
+    admin_headers = _admin_headers()
+
+    scope_id = f"dup_scope_{uuid4().hex[:8]}"
+    version = f"4.0.{uuid4().hex[:4]}"
+    first_content = f"first-{uuid4().hex}".encode("utf-8")
+    second_content = f"second-{uuid4().hex}".encode("utf-8")
+    first_sha = hashlib.sha256(first_content).hexdigest()
+
+    first_upload = client.post(
+        "/v1/admin/bundles/upload",
+        headers=admin_headers,
+        data={
+            "bundle_type": "experts_shared",
+            "scope_id": scope_id,
+            "version": version,
+            "is_mandatory": "true",
+        },
+        files={"file": ("bundle.tar.gz", first_content, "application/gzip")},
+    )
+    assert first_upload.status_code == 201, first_upload.text
+    bundle_id = first_upload.json()["id"]
+
+    second_upload = client.post(
+        "/v1/admin/bundles/upload",
+        headers=admin_headers,
+        data={
+            "bundle_type": "experts_shared",
+            "scope_id": scope_id,
+            "version": version,
+            "is_mandatory": "true",
+        },
+        files={"file": ("bundle.tar.gz", second_content, "application/gzip")},
+    )
+    assert second_upload.status_code == 409, second_upload.text
+
+    detail = client.get(f"/v1/admin/bundles/{bundle_id}", headers=admin_headers)
+    assert detail.status_code == 200, detail.text
+    detail_payload = detail.json()
+    assert detail_payload["sha256"] == first_sha
+    artifact_url = detail_payload["artifact_url"]
+
+    if artifact_url.startswith("/"):
+        artifact_resp = client.get(artifact_url)
+        assert artifact_resp.status_code == 200, artifact_resp.text
+        assert hashlib.sha256(artifact_resp.content).hexdigest() == first_sha
+
+
+@pytest.mark.integration
+def test_admin_upload_rejects_non_tar_gz(client, integration_enabled: bool):
+    _require_integration(integration_enabled)
+    admin_headers = _admin_headers()
+
+    invalid_resp = client.post(
+        "/v1/admin/bundles/upload",
+        headers=admin_headers,
+        data={
+            "bundle_type": "experts_shared",
+            "scope_id": f"bad_file_{uuid4().hex[:8]}",
+            "version": "1.0.0",
+            "is_mandatory": "false",
+        },
+        files={"file": ("bundle.bin", b"not-gzip-data", "application/octet-stream")},
+    )
+    assert invalid_resp.status_code == 400, invalid_resp.text

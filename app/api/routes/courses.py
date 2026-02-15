@@ -6,7 +6,7 @@ from app.api.deps import CurrentUser
 from app.core.error_codes import ErrorCode
 from app.core.errors import ApiError
 from app.db.session import get_db
-from app.models import ChapterProgress, Course, CourseChapter, Enrollment
+from app.models import BundleRelease, ChapterProgress, Course, CourseChapter, Enrollment
 from app.schemas.courses import (
     ChapterItem,
     CourseChaptersResponse,
@@ -87,11 +87,24 @@ def list_course_chapters(course_id: str, current_user: CurrentUser, db: Session 
     if not enrollment:
         raise ApiError(status_code=403, code=ErrorCode.COURSE_ACCESS_DENIED, message="Course not enrolled")
 
-    chapters = db.execute(
+    chapters_all = db.execute(
         select(CourseChapter)
         .where(and_(CourseChapter.course_id == course_id, CourseChapter.is_active.is_(True)))
         .order_by(CourseChapter.sort_order.asc())
     ).scalars().all()
+    scope_to_chapter = {f"{course_id}/{chapter.chapter_code}": chapter for chapter in chapters_all}
+    if not scope_to_chapter:
+        return CourseChaptersResponse(course_id=course_id, chapters=[])
+
+    available_scopes = set(
+        db.execute(
+            select(BundleRelease.scope_id).where(
+                BundleRelease.bundle_type == "chapter",
+                BundleRelease.scope_id.in_(list(scope_to_chapter.keys())),
+            )
+        ).scalars().all()
+    )
+    chapters = [scope_to_chapter[scope] for scope in scope_to_chapter if scope in available_scopes]
 
     progress_rows = db.execute(
         select(ChapterProgress).where(ChapterProgress.user_id == current_user.id, ChapterProgress.course_id == course_id)
@@ -115,6 +128,7 @@ def list_course_chapters(course_id: str, current_user: CurrentUser, db: Session 
                 id=chapter.chapter_code,
                 chapter_code=chapter.chapter_code,
                 title=chapter.title,
+                intro_text=chapter.intro_text,
                 status=status,
                 locked=locked,
                 order=chapter.sort_order,

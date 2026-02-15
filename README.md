@@ -95,6 +95,7 @@ Main variables (see `.env.example`):
 - `AUTH_CODE_MAX_PER_IP_WINDOW=20`
 - `AUTH_CODE_COOLDOWN_SECONDS=30`
 - `SEED_DATA=true`
+- `ADMIN_API_KEY=` (required for `/v1/admin/*`, including bundles and courses)
 - `OSS_ENABLED=false`
 - `OSS_REGION_ID=oss-cn-...`
 - `OSS_ENDPOINT=oss-cn-....aliyuncs.com`
@@ -148,8 +149,20 @@ When `SEED_DATA=true`, startup inserts:
 - `POST /v1/updates/check-chapter`
 - `POST /v1/oss/download-credentials`
 - `POST /v1/oss/resolve-artifact-url`
+- `POST /v1/admin/courses`
+- `GET /v1/admin/courses/{course_id}`
+- `PUT /v1/admin/courses/{course_id}/chapters/{chapter_code}`
+- `PATCH /v1/admin/courses/{course_id}/chapters/{chapter_code}/intro`
+- `POST /v1/admin/bundles/publish`
+- `POST /v1/admin/bundles/upload`
+- `GET /v1/admin/bundles`
+- `GET /v1/admin/bundles/{bundle_id}`
+- `DELETE /v1/admin/bundles/{bundle_id}`
 - `POST /v1/progress/chapter`
 - `POST /v1/analytics/events:ingest`
+
+Chapter visibility rule:
+- `GET /v1/courses/{course_id}/chapters` only returns chapters that already have a `chapter` bundle release (`scope_id={course_id}/{chapter_code}`).
 
 ## Backend TODO Roadmap
 

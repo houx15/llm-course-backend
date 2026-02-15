@@ -69,6 +69,7 @@ class CourseChapter(Base):
     course_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("courses.id"), nullable=False, index=True)
     chapter_code: Mapped[str] = mapped_column(String(128), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
+    intro_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
