@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.db.seed import seed_if_needed
 from app.db.session import SessionLocal
+from app.services.oss import oss_service
 
 settings = get_settings()
 
@@ -24,7 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-if not settings.oss_enabled:
+if not oss_service.is_enabled():
     Path("uploads").mkdir(parents=True, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
