@@ -15,6 +15,7 @@ dependencies = [
   "python-multipart==0.0.20",
   "alembic==1.14.0",
   "httpx>=0.28.1",
+  "oss2>=2.19.1",
 ]
 
 [project.optional-dependencies]
