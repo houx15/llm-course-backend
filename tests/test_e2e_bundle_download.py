@@ -17,7 +17,7 @@ import os
 import httpx
 import pytest
 
-BASE_URL = os.getenv("BASE_URL", "http://47.93.151.131:10723")
+BASE_URL = os.getenv("BASE_URL", "http://localhost:10723")
 TEST_EMAIL = os.getenv("TEST_EMAIL", "student@example.com")
 TEST_PASSWORD = os.getenv("TEST_PASSWORD", "StrongPass123")
 COURSE_ID = "a2159fb9-5973-4cda-be1c-59a190a91d10"
@@ -111,7 +111,8 @@ def test_sidecar_bundle_full_download_loop(integration_enabled: bool) -> None:
         timeout=10,
     )
     assert check.status_code == 200, check.text
-    all_bundles = check.json().get("required", []) + check.json().get("optional", [])
+    payload = check.json()
+    all_bundles = payload.get("required", []) + payload.get("optional", [])
     pr = next((b for b in all_bundles if b["bundle_type"] == "python_runtime"), None)
     assert pr is not None, f"No python_runtime bundle in check-app response: {all_bundles}"
 
