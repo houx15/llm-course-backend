@@ -50,10 +50,6 @@ def check_app_updates(
         if pr_release:
             break
 
-    # Final fallback: any python_runtime bundle regardless of scope.
-    if not pr_release:
-        pr_release = latest_bundle_release(db, bundle_type="python_runtime")
-
     pr_descriptor = check_bundle_required(payload.installed.get("python_runtime"), pr_release)
     if pr_descriptor:
         required.append(pr_descriptor)

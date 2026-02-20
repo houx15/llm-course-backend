@@ -330,7 +330,10 @@ def test_check_app_returns_python_runtime(client, integration_enabled: bool):
     # check-app with no installed python_runtime — should return it as required
     check = client.post(
         "/v1/updates/check-app",
-        json={"installed": {"app_agents": "", "experts_shared": "", "python_runtime": ""}},
+        json={
+            "platform_scope": scope_id,
+            "installed": {"app_agents": "", "experts_shared": "", "python_runtime": ""},
+        },
         headers=user_headers,
     )
     assert check.status_code == 200, check.text
