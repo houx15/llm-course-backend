@@ -287,3 +287,18 @@ def test_admin_upload_rejects_non_tar_gz(client, integration_enabled: bool):
         files={"file": ("bundle.bin", b"not-gzip-data", "application/octet-stream")},
     )
     assert invalid_resp.status_code == 400, invalid_resp.text
+
+
+@pytest.mark.integration
+def test_resolve_local_artifact_returns_http_url(client, integration_enabled: bool):
+    """When OSS is disabled, resolve-artifact-url must return a full http URL."""
+    _require_integration(integration_enabled)
+    user_headers = _register_and_login(client)
+    resp = client.post(
+        "/v1/oss/resolve-artifact-url",
+        json={"artifact": "/uploads/chapter/test/1.0.0/bundle.tar.gz", "expires_seconds": 60},
+        headers=user_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    url = resp.json()["artifact_url"]
+    assert url.startswith("http://") or url.startswith("https://"), f"Not a full URL: {url!r}"

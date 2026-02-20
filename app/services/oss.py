@@ -162,6 +162,14 @@ class OSSService:
         if raw.startswith("http://") or raw.startswith("https://"):
             return raw
 
+        # Local upload path (when OSS disabled): build full http URL using base_url
+        if raw.startswith("/uploads/") or raw.startswith("uploads/"):
+            base = self._settings.base_url.rstrip("/")
+            if base:
+                clean = raw if raw.startswith("/") else f"/{raw}"
+                return f"{base}{clean}"
+            return raw  # No base_url configured — return as-is
+
         key = self._normalize_object_key(raw)
         if not key:
             return raw

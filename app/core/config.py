@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     oss_download_url_expire_seconds: int = 900
     oss_bundle_prefix: str = "bundles/"
 
+    base_url: str = ""  # e.g. "http://47.93.151.131:10723" — used to build absolute URLs for local uploads
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
