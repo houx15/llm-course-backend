@@ -2,9 +2,10 @@ from pydantic import BaseModel
 
 
 class CheckAppRequest(BaseModel):
-    desktop_version: str
-    sidecar_version: str
-    installed: dict[str, str]
+    desktop_version: str = ""
+    sidecar_version: str = ""
+    platform_scope: str = ""
+    installed: dict[str, str] = {}
 
 
 class CheckChapterInstalled(BaseModel):

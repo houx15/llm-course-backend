@@ -36,6 +36,28 @@ def check_app_updates(
     if experts_required:
         optional.append(experts_required)
 
+    # Python runtime bundle (sidecar).
+    # Try platform-specific scope first, then well-known generic scopes, then any python_runtime.
+    platform_scope = (getattr(payload, "platform_scope", None) or "").strip()
+    pr_scope_ids: list[str] = []
+    if platform_scope:
+        pr_scope_ids.append(platform_scope)
+    pr_scope_ids.extend(["core", "default", "standard", "py312"])
+
+    pr_release = None
+    for scope in pr_scope_ids:
+        pr_release = latest_bundle_release(db, bundle_type="python_runtime", scope_id=scope)
+        if pr_release:
+            break
+
+    # Final fallback: any python_runtime bundle regardless of scope.
+    if not pr_release:
+        pr_release = latest_bundle_release(db, bundle_type="python_runtime")
+
+    pr_descriptor = check_bundle_required(payload.installed.get("python_runtime"), pr_release)
+    if pr_descriptor:
+        required.append(pr_descriptor)
+
     return CheckAppResponse(required=required, optional=optional)
 
 

@@ -302,3 +302,38 @@ def test_resolve_local_artifact_returns_http_url(client, integration_enabled: bo
     assert resp.status_code == 200, resp.text
     url = resp.json()["artifact_url"]
     assert url.startswith("http://") or url.startswith("https://"), f"Not a full URL: {url!r}"
+
+
+@pytest.mark.integration
+def test_check_app_returns_python_runtime(client, integration_enabled: bool):
+    """check-app must include python_runtime bundle when registered in DB."""
+    _require_integration(integration_enabled)
+    admin_headers = _admin_headers()
+    user_headers = _register_and_login(client)
+    scope_id = f"py312-darwin-arm64-{uuid4().hex[:6]}"
+    version = f"1.0.{uuid4().hex[:4]}"
+
+    # Register a python_runtime bundle
+    payload = {
+        "bundle_type": "python_runtime",
+        "scope_id": scope_id,
+        "version": version,
+        "artifact_url": f"https://cdn.example.com/bundles/python_runtime/{scope_id}/{version}/bundle.tar.gz",
+        "sha256": hashlib.sha256(version.encode()).hexdigest(),
+        "size_bytes": 50_000_000,
+        "is_mandatory": True,
+        "manifest_json": {"platform": "darwin-arm64"},
+    }
+    pub = client.post("/v1/admin/bundles/publish", json=payload, headers=admin_headers)
+    assert pub.status_code == 201, pub.text
+
+    # check-app with no installed python_runtime — should return it as required
+    check = client.post(
+        "/v1/updates/check-app",
+        json={"installed": {"app_agents": "", "experts_shared": "", "python_runtime": ""}},
+        headers=user_headers,
+    )
+    assert check.status_code == 200, check.text
+    all_bundles = check.json().get("required", []) + check.json().get("optional", [])
+    pr_bundles = [b for b in all_bundles if b["bundle_type"] == "python_runtime"]
+    assert len(pr_bundles) >= 1, f"Expected python_runtime in check-app response, got: {all_bundles}"
