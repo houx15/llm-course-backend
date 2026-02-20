@@ -243,6 +243,108 @@ This script will:
 - create the user if missing, or update display name/password if existing
 - optionally enroll the user into the given active course
 
+## Deployment Guide: Bundle Upload API
+
+When deploying new features (e.g., bundle-upload-api) to your server, follow these steps:
+
+### Step 1: Pull Latest Code on Server
+
+```bash
+cd /path/to/llm-course-backend
+git pull origin main
+```
+
+Or if you're on a feature branch:
+```bash
+git fetch origin
+git checkout feature/bundle-upload-api
+git pull origin feature/bundle-upload-api
+```
+
+### Step 2: Update Environment Variables
+
+Edit `.env` on the server to add the new config options:
+
+```bash
+nano .env
+```
+
+Add/verify these variables:
+
+```env
+# Admin API key - REQUIRED for /v1/admin/* endpoints
+ADMIN_API_KEY=your-secure-admin-key-here
+
+# OSS config for bundle uploads
+OSS_ENABLED=true
+OSS_REGION_ID=oss-cn-hangzhou
+OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
+OSS_BUCKET_NAME=your-bucket-name
+OSS_ACCESS_KEY_ID=your-access-key-id
+OSS_ACCESS_KEY_SECRET=your-access-key-secret
+OSS_BUNDLE_PREFIX=bundles/
+```
+
+For local dev without OSS, set `OSS_ENABLED=false` — uploads will be stored in `./uploads/`.
+
+### Step 3: Rebuild and Restart Docker Containers
+
+```bash
+docker compose down
+docker compose up --build -d
+```
+
+This will:
+- Rebuild the Docker image with new code
+- Apply any pending migrations automatically
+- Start the API on port 10723
+
+### Step 4: Verify Deployment
+
+1. Check container logs:
+```bash
+docker compose logs -f api
+```
+
+2. Test health endpoint:
+```bash
+curl http://localhost:10723/healthz
+```
+
+3. Test admin bundles endpoint:
+```bash
+curl -H "X-Admin-Key: your-secure-admin-key-here" \
+     http://localhost:10723/v1/admin/bundles
+```
+
+4. Check OpenAPI docs:
+```bash
+open http://localhost:10723/docs
+```
+
+### Step 5: Publish a Test Bundle (Optional)
+
+```bash
+curl -X POST http://localhost:10723/v1/admin/bundles/publish \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Key: your-secure-admin-key-here" \
+  -d '{
+    "bundle_type": "experts",
+    "scope_id": "data_inspector",
+    "version": "1.0.0",
+    "artifact_url": "https://example.com/bundle.tar.gz",
+    "sha256": "abc123...",
+    "size_bytes": 12345,
+    "is_mandatory": true
+  }'
+```
+
+### Troubleshooting
+
+- **403 Forbidden on admin endpoints**: Verify `ADMIN_API_KEY` is set and matches the header
+- **OSS upload fails**: Check OSS credentials and bucket permissions
+- **Container won't start**: Run `docker compose logs api` for error details
+
 ## Dev Notes
 
 - Email sending is currently stubbed in non-production; auth code is returned as `dev_code`.
