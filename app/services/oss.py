@@ -4,6 +4,7 @@ Alibaba Cloud OSS service helpers for bundle delivery.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 import json
 from pathlib import Path, PurePosixPath
@@ -12,6 +13,8 @@ from urllib.parse import urlparse
 import uuid
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class OSSService:
@@ -163,11 +166,15 @@ class OSSService:
             return raw
 
         # Local upload path (when OSS disabled): build full http URL using base_url
-        if raw.startswith("/uploads/") or raw.startswith("uploads/"):
+        if (raw.startswith("/uploads/") or raw.startswith("uploads/")) and not self.is_enabled():
             base = self._settings.base_url.rstrip("/")
             if base:
                 clean = raw if raw.startswith("/") else f"/{raw}"
                 return f"{base}{clean}"
+            logger.warning(
+                "base_url is not configured; returning relative path %r which the desktop cannot download",
+                raw,
+            )
             return raw  # No base_url configured — return as-is
 
         key = self._normalize_object_key(raw)
