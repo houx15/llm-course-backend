@@ -340,3 +340,76 @@ def test_check_app_returns_python_runtime(client, integration_enabled: bool):
     all_bundles = check.json().get("required", []) + check.json().get("optional", [])
     pr_bundles = [b for b in all_bundles if b["bundle_type"] == "python_runtime"]
     assert len(pr_bundles) >= 1, f"Expected python_runtime in check-app response, got: {all_bundles}"
+
+
+@pytest.mark.integration
+def test_upload_chapter_bundle_is_downloadable(client, integration_enabled: bool):
+    """Upload a real chapter bundle and verify check-chapter returns a downloadable URL."""
+    import json as _json
+    import io as _io
+    import tarfile as _tarfile
+    import time as _time
+    import httpx as _httpx
+
+    _require_integration(integration_enabled)
+    admin_headers = _admin_headers()
+    user_headers = _register_and_login(client)
+    course_id, chapter_code = _enroll_and_get_course_chapter(client, user_headers)
+    scope_id = f"{course_id}/{chapter_code}"
+
+    # Build a minimal valid chapter bundle in-memory
+    buf = _io.BytesIO()
+    with _tarfile.open(fileobj=buf, mode="w:gz") as tf:
+        manifest_data = _json.dumps({
+            "format_version": "bundle-v2",
+            "bundle_type": "chapter",
+            "scope_id": scope_id,
+            "version": "99.0.0",
+            "created_at": "2026-02-21T00:00:00Z",
+            "chapter": {"course_id": course_id, "chapter_code": chapter_code, "title": "Test"},
+            "files": [],
+        }).encode()
+        ti = _tarfile.TarInfo("bundle.manifest.json")
+        ti.size = len(manifest_data)
+        tf.addfile(ti, _io.BytesIO(manifest_data))
+        for fname in ["prompts/chapter_context.md", "prompts/task_list.md", "prompts/task_completion_principles.md"]:
+            content = f"# {fname}".encode()
+            ti = _tarfile.TarInfo(fname)
+            ti.size = len(content)
+            tf.addfile(ti, _io.BytesIO(content))
+    bundle_bytes = buf.getvalue()
+
+    # Upload via admin API
+    version = f"99.0.{int(_time.time()) % 10000}"
+    upload_resp = client.post(
+        "/v1/admin/bundles/upload",
+        headers=admin_headers,
+        files={"file": ("bundle.tar.gz", bundle_bytes, "application/gzip")},
+        data={
+            "bundle_type": "chapter",
+            "scope_id": scope_id,
+            "version": version,
+            "is_mandatory": "true",
+            "manifest_json": _json.dumps({"required_experts": []}),
+        },
+    )
+    assert upload_resp.status_code == 201, upload_resp.text
+    artifact_url = upload_resp.json()["artifact_url"]
+
+    # Resolve the artifact URL
+    resolve_resp = client.post(
+        "/v1/oss/resolve-artifact-url",
+        json={"artifact": artifact_url, "expires_seconds": 60},
+        headers=user_headers,
+    )
+    assert resolve_resp.status_code == 200, resolve_resp.text
+    download_url = resolve_resp.json()["artifact_url"]
+    assert download_url.startswith("http"), f"Expected http URL, got: {download_url!r}"
+
+    # Download the bundle
+    dl = _httpx.get(download_url, follow_redirects=True, timeout=30)
+    assert dl.status_code == 200, f"Download failed: {dl.status_code}"
+    assert dl.content[:2] == b"\x1f\x8b", "Downloaded file is not gzip"
+    actual_sha = hashlib.sha256(dl.content).hexdigest()
+    expected_sha = hashlib.sha256(bundle_bytes).hexdigest()
+    assert actual_sha == expected_sha, f"SHA256 mismatch: {actual_sha} != {expected_sha}"
