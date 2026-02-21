@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -7,7 +7,7 @@ from app.core.error_codes import ErrorCode
 from app.core.errors import ApiError
 from app.db.session import get_db
 from app.models import CourseChapter, Enrollment
-from app.schemas.updates import CheckAppRequest, CheckAppResponse, CheckChapterRequest, CheckChapterResolved, CheckChapterResponse
+from app.schemas.updates import CheckAppRequest, CheckAppResponse, CheckChapterRequest, CheckChapterResolved, CheckChapterResponse, RuntimeConfigResponse
 from app.services.update_service import check_bundle_required, latest_bundle_release
 
 router = APIRouter(prefix="/v1/updates", tags=["updates"])
@@ -110,4 +110,38 @@ def check_chapter_updates(
             chapter_id=payload.chapter_id,
             required_experts=required_experts,
         ),
+    )
+
+
+# Miniconda platform scope → installer filename on Tsinghua mirror
+_CONDA_BASE = "https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda/"
+_CONDA_FILENAMES: dict[str, str] = {
+    "py312-darwin-arm64": "Miniconda3-py312_25.11.1-1-MacOSX-arm64.sh",
+    "py312-darwin-x64":   "Miniconda3-py312_25.7.0-2-MacOSX-x86_64.sh",
+    "py312-win-x64":      "Miniconda3-py312_25.11.1-1-Windows-x86_64.exe",
+    "py312-linux-x64":    "Miniconda3-py312_25.11.1-1-Linux-x86_64.sh",
+}
+
+
+@router.get("/runtime-config", response_model=RuntimeConfigResponse)
+def get_runtime_config(
+    platform_scope: str = Query(..., description="Platform scope, e.g. py312-darwin-arm64"),
+    current_user: CurrentUser,
+) -> RuntimeConfigResponse:
+    del current_user
+    filename = _CONDA_FILENAMES.get(platform_scope)
+    if not filename:
+        raise ApiError(
+            status_code=400,
+            code=ErrorCode.VALIDATION_ERROR,
+            message=f"Unknown platform_scope: {platform_scope!r}. "
+                    f"Valid values: {sorted(_CONDA_FILENAMES)}",
+        )
+    return RuntimeConfigResponse(
+        conda_installer_url=_CONDA_BASE + filename,
+        pip_index_url="https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/",
+        conda_channels=[
+            "https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main",
+            "https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/r",
+        ],
     )

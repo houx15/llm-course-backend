@@ -43,3 +43,9 @@ class CheckChapterResolved(BaseModel):
 class CheckChapterResponse(BaseModel):
     required: list[BundleDescriptor]
     resolved_chapter: CheckChapterResolved
+
+
+class RuntimeConfigResponse(BaseModel):
+    conda_installer_url: str
+    pip_index_url: str
+    conda_channels: list[str]
