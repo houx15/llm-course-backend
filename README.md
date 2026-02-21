@@ -147,6 +147,7 @@ When `SEED_DATA=true`, startup inserts:
 - `GET /v1/courses/{course_id}/chapters`
 - `POST /v1/updates/check-app`
 - `POST /v1/updates/check-chapter`
+- `GET /v1/updates/runtime-config` — returns Miniconda installer URL + pip/conda mirror config per platform
 - `POST /v1/oss/download-credentials`
 - `POST /v1/oss/resolve-artifact-url`
 - `POST /v1/admin/courses`
