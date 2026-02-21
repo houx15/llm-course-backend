@@ -125,8 +125,8 @@ _CONDA_FILENAMES: dict[str, str] = {
 
 @router.get("/runtime-config", response_model=RuntimeConfigResponse)
 def get_runtime_config(
-    platform_scope: str = Query(..., description="Platform scope, e.g. py312-darwin-arm64"),
     current_user: CurrentUser,
+    platform_scope: str = Query(..., description="Platform scope, e.g. py312-darwin-arm64"),
 ) -> RuntimeConfigResponse:
     del current_user
     filename = _CONDA_FILENAMES.get(platform_scope)
