@@ -66,15 +66,9 @@ def build_bundle(templates_dir: Path) -> bytes:
 
 
 def upload(server: str, admin_key: str, bundle_bytes: bytes, version: str) -> dict:
-    url = f"{server.rstrip('/')}/v1/admin/bundles/upload"
+    url = f"{server.rstrip('/')}/v1/admin/bundles/upload-templates"
     files = {"file": (f"curriculum_templates_{version}.tar.gz", bundle_bytes, "application/gzip")}
-    data = {
-        "bundle_type": "app_agents",
-        "scope_id": "curriculum_templates",
-        "version": version,
-        "is_mandatory": "false",   # optional — app works without it (falls back to built-ins)
-        "manifest_json": "{}",
-    }
+    data = {"version": version}
     headers = {"X-Admin-Key": admin_key}
 
     with httpx.Client(timeout=60.0) as client:

@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 """
-Upload bundle to remote server via /v1/admin/bundles/upload API.
+Upload bundle to remote server via typed admin API endpoints.
+
+Routes automatically to the right endpoint based on --bundle-type:
+  chapter         → POST /v1/admin/bundles/upload-chapter   (mandatory, scope_id=course/chapter)
+  experts         → POST /v1/admin/bundles/upload-expert    (optional, --scope-id=expert_id)
+  experts_shared  → POST /v1/admin/bundles/upload-expert    (optional, shared=true)
+  app_agents      → POST /v1/admin/bundles/upload           (generic, requires --scope-id)
+  python_runtime  → POST /v1/admin/bundles/upload           (generic, requires --scope-id)
 
 Can accept either a directory (will be zipped to .tar.gz) or an existing .tar.gz file.
 
-Usage with directory (auto-zip):
+Usage — chapter bundle:
     uv run python app/scripts/upload_bundle.py \
         --server https://api.example.com \
         --admin-key YOUR_ADMIN_KEY \
@@ -13,13 +20,13 @@ Usage with directory (auto-zip):
         --scope-id SOC101/ch1_intro \
         --version 1.0.0
 
-Usage with existing .tar.gz:
+Usage — expert bundle:
     uv run python app/scripts/upload_bundle.py \
         --server https://api.example.com \
         --admin-key YOUR_ADMIN_KEY \
-        --source ./bundles/ch1_intro.tar.gz \
-        --bundle-type chapter \
-        --scope-id SOC101/ch1_intro \
+        --source ./experts/data_inspector \
+        --bundle-type experts \
+        --scope-id data_inspector \
         --version 1.0.0
 """
 
@@ -150,20 +157,35 @@ def main() -> int:
         return 1
 
     server = args.server.rstrip("/")
-    url = f"{server}/v1/admin/bundles/upload"
+    bundle_type = args.bundle_type
+
+    # Route to the appropriate typed endpoint
+    if bundle_type == "chapter":
+        url = f"{server}/v1/admin/bundles/upload-chapter"
+        data = {"scope_id": args.scope_id, "version": args.version}
+    elif bundle_type in ("experts", "experts_shared"):
+        url = f"{server}/v1/admin/bundles/upload-expert"
+        data = {
+            "scope_id": args.scope_id,
+            "version": args.version,
+            "shared": "true" if bundle_type == "experts_shared" else "false",
+        }
+    else:
+        # app_agents, python_runtime, etc. — fall back to the generic endpoint
+        url = f"{server}/v1/admin/bundles/upload"
+        data = {
+            "bundle_type": bundle_type,
+            "scope_id": args.scope_id,
+            "version": args.version,
+            "is_mandatory": "true" if args.mandatory else "false",
+            "manifest_json": args.manifest,
+        }
 
     files = {"file": (filename, archive_bytes, "application/gzip")}
-    data = {
-        "bundle_type": args.bundle_type,
-        "scope_id": args.scope_id,
-        "version": args.version,
-        "is_mandatory": "true" if args.mandatory else "false",
-        "manifest_json": args.manifest,
-    }
     headers = {"X-Admin-Key": args.admin_key}
 
     print(f"\nUploading to {url}...")
-    print(f"  bundle_type: {args.bundle_type}")
+    print(f"  bundle_type: {bundle_type}")
     print(f"  scope_id: {args.scope_id}")
     print(f"  version: {args.version}")
 

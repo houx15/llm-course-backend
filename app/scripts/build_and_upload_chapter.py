@@ -101,18 +101,12 @@ def _auto_version() -> str:
 
 
 def _upload(server: str, admin_key: str, bundle_path: Path, scope_id: str, version: str) -> dict:
-    url = f"{server.rstrip('/')}/v1/admin/bundles/upload"
+    url = f"{server.rstrip('/')}/v1/admin/bundles/upload-chapter"
     with bundle_path.open("rb") as f:
         bundle_bytes = f.read()
 
     files = {"file": (bundle_path.name, bundle_bytes, "application/gzip")}
-    data = {
-        "bundle_type": "chapter",
-        "scope_id": scope_id,
-        "version": version,
-        "is_mandatory": "true",
-        "manifest_json": "{}",
-    }
+    data = {"scope_id": scope_id, "version": version}
     headers = {"X-Admin-Key": admin_key}
 
     with httpx.Client(timeout=120.0) as client:
