@@ -78,6 +78,7 @@ class ConfirmUploadRequest(BaseModel):
     filename: str
     chapter_id: str
     file_size_bytes: int
+    session_id: str = ""
 
 
 class ConfirmUploadResponse(BaseModel):

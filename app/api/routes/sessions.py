@@ -252,7 +252,7 @@ def confirm_upload(
 ) -> ConfirmUploadResponse:
     row = UserSubmittedFile(
         user_id=current_user.id,
-        session_id="",
+        session_id=payload.session_id,
         chapter_id=payload.chapter_id,
         filename=payload.filename,
         oss_key=payload.oss_key,
