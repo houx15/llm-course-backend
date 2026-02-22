@@ -144,3 +144,64 @@ class AuthRateLimitEvent(Base):
     action: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     identifier: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
+class LearningSession(Base):
+    __tablename__ = "learning_sessions"
+
+    session_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    chapter_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    course_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_active_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class SessionTurnHistory(Base):
+    __tablename__ = "session_turn_history"
+    __table_args__ = (UniqueConstraint("session_id", "turn_index", name="uq_turn_session_index"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    session_id: Mapped[str] = mapped_column(String(64), ForeignKey("learning_sessions.session_id"), nullable=False, index=True)
+    chapter_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    turn_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    user_message: Mapped[str] = mapped_column(Text, nullable=False)
+    companion_response: Mapped[str] = mapped_column(Text, nullable=False)
+    turn_outcome: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class SessionMemoryState(Base):
+    __tablename__ = "session_memory_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    session_id: Mapped[str] = mapped_column(String(64), ForeignKey("learning_sessions.session_id"), nullable=False, unique=True)
+    chapter_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    memory_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class SessionDynamicReport(Base):
+    __tablename__ = "session_dynamic_report"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    session_id: Mapped[str] = mapped_column(String(64), ForeignKey("learning_sessions.session_id"), nullable=False, unique=True)
+    chapter_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    report_md: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class UserSubmittedFile(Base):
+    __tablename__ = "user_submitted_files"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    session_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    chapter_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    oss_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
