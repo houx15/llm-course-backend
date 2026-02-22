@@ -182,6 +182,21 @@ def test_session_sync_flow(client, integration_enabled: bool):
     assert quota["quota_used_bytes"] >= fake_size
     assert quota["quota_limit_bytes"] == 100 * 1024 * 1024
 
+    # Confirm endpoint must enforce quota too (cannot bypass upload-url check)
+    resp = client.post(
+        "/v1/storage/workspace/confirm",
+        json={
+            "oss_key": oss_key,
+            "filename": "too_large.py",
+            "chapter_id": chapter_id,
+            "file_size_bytes": 100 * 1024 * 1024,
+            "session_id": session_id,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["error"]["code"] == "QUOTA_EXCEEDED"
+
     # List files
     resp = client.get("/v1/storage/workspace/files", headers=headers)
     assert resp.status_code == 200, resp.text

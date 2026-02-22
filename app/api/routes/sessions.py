@@ -16,6 +16,7 @@ from app.models import (
     SessionDynamicReport,
     SessionMemoryState,
     SessionTurnHistory,
+    User,
     UserSubmittedFile,
 )
 from app.schemas.sessions import (
@@ -250,6 +251,24 @@ def confirm_upload(
     current_user: CurrentUser,
     db: Session = Depends(get_db),
 ) -> ConfirmUploadResponse:
+    expected_prefix = f"user/{current_user.id}/workspace/{payload.chapter_id}/"
+    if not payload.oss_key.startswith(expected_prefix):
+        raise ApiError(
+            status_code=400,
+            code=ErrorCode.VALIDATION_ERROR,
+            message="Invalid oss_key for current user/chapter",
+        )
+
+    # Serialize confirms per user so quota check + insert is atomic.
+    db.execute(select(User.id).where(User.id == current_user.id).with_for_update()).scalar_one_or_none()
+    used = _quota_used(db, current_user.id)
+    if used + payload.file_size_bytes > USER_QUOTA_BYTES:
+        raise ApiError(
+            status_code=409,
+            code=ErrorCode.QUOTA_EXCEEDED,
+            message=f"存储空间不足 (已用 {used // (1024 * 1024)}MB / 100MB)",
+        )
+
     row = UserSubmittedFile(
         user_id=current_user.id,
         session_id=payload.session_id,
@@ -260,8 +279,10 @@ def confirm_upload(
     )
     db.add(row)
     db.commit()
-    used = _quota_used(db, current_user.id)
-    return ConfirmUploadResponse(quota_used_bytes=used, quota_limit_bytes=USER_QUOTA_BYTES)
+    return ConfirmUploadResponse(
+        quota_used_bytes=used + payload.file_size_bytes,
+        quota_limit_bytes=USER_QUOTA_BYTES,
+    )
 
 
 @router.get("/storage/workspace/files", response_model=SubmittedFilesResponse)

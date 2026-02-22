@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ── Session registration ──────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ USER_QUOTA_BYTES = 100 * 1024 * 1024  # 100 MB
 class UploadUrlRequest(BaseModel):
     chapter_id: str
     filename: str
-    file_size_bytes: int
+    file_size_bytes: int = Field(gt=0)
 
 
 class UploadUrlResponse(BaseModel):
@@ -77,7 +77,7 @@ class ConfirmUploadRequest(BaseModel):
     oss_key: str
     filename: str
     chapter_id: str
-    file_size_bytes: int
+    file_size_bytes: int = Field(gt=0)
     session_id: str = ""
 
 
