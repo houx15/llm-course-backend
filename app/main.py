@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api.routes import admin_bundles, admin_courses, analytics, auth, courses, me, progress, updates, upload
+from app.api.routes import admin_bundles, admin_courses, analytics, auth, courses, me, progress, sessions, updates, upload
 from app.api.routes.admin_bundles import experts_router
 from app.core.config import get_settings
 from app.core.errors import ApiError
@@ -63,6 +63,7 @@ app.include_router(courses.router)
 app.include_router(updates.router)
 app.include_router(progress.router)
 app.include_router(analytics.router)
+app.include_router(sessions.router)
 app.include_router(upload.router)
 app.include_router(admin_bundles.router)
 app.include_router(admin_courses.router)
