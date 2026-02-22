@@ -209,6 +209,20 @@ class OSSService:
         except Exception:
             return None
 
+
+    def sign_put_url(self, key: str, expires_seconds: int = 300) -> str:
+        """Return a presigned PUT URL for direct client upload."""
+        s = self._settings
+        if not (s.oss_access_key_id and s.oss_access_key_secret and s.oss_bucket_name and s.oss_endpoint):
+            raise RuntimeError("OSS credentials not configured")
+        try:
+            import oss2
+            auth = oss2.Auth(s.oss_access_key_id, s.oss_access_key_secret)
+            bucket = oss2.Bucket(auth, f"https://{s.oss_endpoint}", s.oss_bucket_name)
+            return bucket.sign_url("PUT", key, expires_seconds)
+        except Exception as exc:
+            raise RuntimeError(f"Failed to generate presigned PUT URL: {exc}") from exc
+
     def _get_sts_client(self):
         if self._sts_client is not None:
             return self._sts_client
