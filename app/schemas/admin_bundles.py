@@ -41,3 +41,17 @@ class BundleUploadResponse(BaseModel):
     artifact_url: str
     sha256: str
     size_bytes: int
+
+
+class ExpertSummaryResponse(BaseModel):
+    id: str
+    bundle_type: str
+    scope_id: str
+    version: str
+    artifact_url: str
+    created_at: str
+
+
+class ExpertListResponse(BaseModel):
+    experts: list[ExpertSummaryResponse]
+    total: int

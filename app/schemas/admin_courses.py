@@ -54,3 +54,12 @@ class AdminChapterUpsertRequest(BaseModel):
 
 class AdminChapterIntroUpdateRequest(BaseModel):
     intro_text: str = ""
+
+
+class AdminCourseSummaryResponse(AdminCourseResponse):
+    chapter_count: int
+
+
+class AdminCourseListResponse(BaseModel):
+    courses: list[AdminCourseSummaryResponse]
+    total: int

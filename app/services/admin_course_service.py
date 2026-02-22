@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import delete as sql_delete
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.error_codes import ErrorCode
 from app.core.errors import ApiError
-from app.models import BundleRelease, Course, CourseChapter
+from app.models import BundleRelease, ChapterProgress, Course, CourseChapter, Enrollment
 from app.schemas.admin_courses import AdminChapterCreate, AdminChapterUpsertRequest, AdminCourseCreateRequest
 
 
@@ -133,3 +134,74 @@ def update_chapter_intro(
     db.commit()
     db.refresh(chapter)
     return chapter
+
+
+def list_all_courses(db: Session) -> list[tuple[Course, int]]:
+    """Return all courses (newest first) paired with their chapter count."""
+    courses = db.execute(select(Course).order_by(Course.created_at.desc())).scalars().all()
+    if not courses:
+        return []
+    course_ids = [c.id for c in courses]
+    counts_result = db.execute(
+        select(CourseChapter.course_id, func.count(CourseChapter.id).label("cnt"))
+        .where(CourseChapter.course_id.in_(course_ids))
+        .group_by(CourseChapter.course_id)
+    ).all()
+    count_map = {row.course_id: row.cnt for row in counts_result}
+    return [(course, count_map.get(course.id, 0)) for course in courses]
+
+
+def delete_course(db: Session, course_id: str, *, delete_bundles: bool = False) -> None:
+    """Hard-delete a course, its chapters, enrollments, and chapter progress.
+
+    If delete_bundles=True also removes the associated chapter BundleReleases.
+    """
+    course = get_course_or_404(db, course_id)
+
+    if delete_bundles:
+        chapter_codes = db.execute(
+            select(CourseChapter.chapter_code).where(CourseChapter.course_id == course.id)
+        ).scalars().all()
+        scopes = [f"{course_id}/{code}" for code in chapter_codes]
+        if scopes:
+            db.execute(
+                sql_delete(BundleRelease).where(
+                    BundleRelease.bundle_type == "chapter",
+                    BundleRelease.scope_id.in_(scopes),
+                )
+            )
+
+    db.execute(sql_delete(ChapterProgress).where(ChapterProgress.course_id == course.id))
+    db.execute(sql_delete(Enrollment).where(Enrollment.course_id == course.id))
+    db.execute(sql_delete(CourseChapter).where(CourseChapter.course_id == course.id))
+    db.delete(course)
+    db.commit()
+
+
+def delete_chapter(db: Session, *, course_id: str, chapter_code: str, delete_bundles: bool = False) -> None:
+    """Hard-delete a single chapter (and its progress records).
+
+    If delete_bundles=True also removes the chapter's BundleReleases.
+    """
+    get_course_or_404(db, course_id)
+    chapter = db.execute(
+        select(CourseChapter).where(
+            CourseChapter.course_id == course_id,
+            CourseChapter.chapter_code == chapter_code,
+        )
+    ).scalars().first()
+    if not chapter:
+        raise ApiError(status_code=404, code=ErrorCode.CHAPTER_NOT_FOUND, message="Chapter not found")
+
+    if delete_bundles:
+        scope = f"{course_id}/{chapter_code}"
+        db.execute(
+            sql_delete(BundleRelease).where(
+                BundleRelease.bundle_type == "chapter",
+                BundleRelease.scope_id == scope,
+            )
+        )
+
+    db.execute(sql_delete(ChapterProgress).where(ChapterProgress.chapter_id == chapter.id))
+    db.delete(chapter)
+    db.commit()

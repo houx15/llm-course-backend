@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.routes import admin_bundles, admin_courses, analytics, auth, courses, me, progress, updates, upload
+from app.api.routes.admin_bundles import experts_router
 from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.db.seed import seed_if_needed
@@ -65,3 +66,4 @@ app.include_router(analytics.router)
 app.include_router(upload.router)
 app.include_router(admin_bundles.router)
 app.include_router(admin_courses.router)
+app.include_router(experts_router)
