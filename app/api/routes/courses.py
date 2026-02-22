@@ -114,16 +114,13 @@ def list_course_chapters(course_id: str, current_user: CurrentUser, db: Session 
     progress_map = {str(row.chapter_id): row for row in progress_rows}
 
     output: list[ChapterItem] = []
-    prev_completed = True
 
-    for idx, chapter in enumerate(chapters):
+    for chapter in chapters:
         row = progress_map.get(str(chapter.id))
-        if row:
+        if row and row.status in ("IN_PROGRESS", "COMPLETED"):
             status = row.status
-            locked = status == "LOCKED"
         else:
-            locked = idx > 0 and not prev_completed
-            status = "LOCKED" if locked else "IN_PROGRESS"
+            status = "NOT_STARTED"
 
         output.append(
             ChapterItem(
@@ -132,11 +129,9 @@ def list_course_chapters(course_id: str, current_user: CurrentUser, db: Session 
                 title=chapter.title,
                 intro_text=chapter.intro_text,
                 status=status,
-                locked=locked,
+                locked=False,
                 order=chapter.sort_order,
             )
         )
-
-        prev_completed = status == "COMPLETED"
 
     return CourseChaptersResponse(course_id=course_id, chapters=output)
