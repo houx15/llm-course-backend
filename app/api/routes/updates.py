@@ -36,6 +36,12 @@ def check_app_updates(
     if experts_required:
         optional.append(experts_required)
 
+    # Curriculum templates bundle (report templates used by Memo/MA agents).
+    templates_release = latest_bundle_release(db, bundle_type="app_agents", scope_id="curriculum_templates")
+    templates_required = check_bundle_required(payload.installed.get("curriculum_templates"), templates_release)
+    if templates_required:
+        optional.append(templates_required)
+
     # Python runtime bundle (sidecar).
     # Try platform-specific scope first, then well-known generic scopes, then any python_runtime.
     platform_scope = (getattr(payload, "platform_scope", None) or "").strip()
