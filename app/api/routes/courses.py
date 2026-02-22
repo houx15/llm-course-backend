@@ -92,7 +92,9 @@ def list_course_chapters(course_id: str, current_user: CurrentUser, db: Session 
         .where(and_(CourseChapter.course_id == course_id, CourseChapter.is_active.is_(True)))
         .order_by(CourseChapter.sort_order.asc())
     ).scalars().all()
-    scope_to_chapter = {f"{course_id}/{chapter.chapter_code}": chapter for chapter in chapters_all}
+    course_obj = db.get(Course, course_id)
+    course_code = course_obj.course_code if course_obj else course_id
+    scope_to_chapter = {f"{course_code}/{chapter.chapter_code}": chapter for chapter in chapters_all}
     if not scope_to_chapter:
         return CourseChaptersResponse(course_id=course_id, chapters=[])
 

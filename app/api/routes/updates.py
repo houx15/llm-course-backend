@@ -6,7 +6,7 @@ from app.api.deps import CurrentUser
 from app.core.error_codes import ErrorCode
 from app.core.errors import ApiError
 from app.db.session import get_db
-from app.models import CourseChapter, Enrollment
+from app.models import Course, CourseChapter, Enrollment
 from app.schemas.updates import CheckAppRequest, CheckAppResponse, CheckChapterRequest, CheckChapterResolved, CheckChapterResponse, RuntimeConfigResponse
 from app.services.update_service import check_bundle_required, latest_bundle_release
 
@@ -89,8 +89,12 @@ def check_chapter_updates(
     if not chapter:
         raise ApiError(status_code=404, code=ErrorCode.CHAPTER_NOT_FOUND, message="Chapter not found")
 
+    # Use course_code (stable across deployments) for bundle scope_id lookup.
+    course = db.get(Course, payload.course_id)
+    course_code = course.course_code if course else payload.course_id
+
     required = []
-    chapter_scope = f"{payload.course_id}/{payload.chapter_id}"
+    chapter_scope = f"{course_code}/{payload.chapter_id}"
     chapter_release = latest_bundle_release(db, bundle_type="chapter", scope_id=chapter_scope)
     chapter_required = check_bundle_required(payload.installed.chapter_bundle, chapter_release)
     if chapter_required:
