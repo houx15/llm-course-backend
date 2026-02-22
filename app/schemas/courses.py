@@ -22,11 +22,19 @@ class JoinCourseResponse(BaseModel):
     course: CourseSummary
 
 
+class CourseOverview(BaseModel):
+    experience: str = ""
+    gains: str = ""
+    necessity: str = ""
+    journey: str = ""
+
+
 class CourseDetailResponse(BaseModel):
     id: str
     title: str
     description: str
     instructor: str
+    overview: CourseOverview
 
 
 class ChapterItem(BaseModel):

@@ -57,6 +57,10 @@ class Course(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     instructor: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     semester: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    overview_experience: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    overview_gains: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    overview_necessity: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    overview_journey: Mapped[str] = mapped_column(Text, nullable=False, default="")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

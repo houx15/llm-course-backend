@@ -11,6 +11,7 @@ from app.schemas.courses import (
     ChapterItem,
     CourseChaptersResponse,
     CourseDetailResponse,
+    CourseOverview,
     CourseSummary,
     CoursesMyResponse,
     JoinCourseRequest,
@@ -76,7 +77,18 @@ def get_course(course_id: str, current_user: CurrentUser, db: Session = Depends(
     if not course or not course.is_active:
         raise ApiError(status_code=404, code=ErrorCode.COURSE_NOT_FOUND, message="Course not found")
 
-    return CourseDetailResponse(id=str(course.id), title=course.title, description=course.description, instructor=course.instructor)
+    return CourseDetailResponse(
+        id=str(course.id),
+        title=course.title,
+        description=course.description,
+        instructor=course.instructor,
+        overview=CourseOverview(
+            experience=course.overview_experience,
+            gains=course.overview_gains,
+            necessity=course.overview_necessity,
+            journey=course.overview_journey,
+        ),
+    )
 
 
 @router.get("/{course_id}/chapters", response_model=CourseChaptersResponse)
