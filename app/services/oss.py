@@ -45,7 +45,34 @@ class OSSService:
 
     def _oss_origin_url(self, key: str) -> str:
         s = self._settings
-        return f"https://{s.oss_bucket_name}.{s.oss_endpoint}/{key}"
+        return f"https://{s.oss_bucket_name}.{self._normalized_endpoint_host()}/{key}"
+
+    def _normalized_endpoint_host(self) -> str:
+        """
+        Return endpoint host without scheme/path and without duplicated bucket prefix.
+
+        Supports env values like:
+        - oss-cn-hangzhou.aliyuncs.com
+        - https://oss-cn-hangzhou.aliyuncs.com
+        - https://<bucket>.oss-cn-hangzhou.aliyuncs.com
+        """
+        raw = str(self._settings.oss_endpoint or "").strip()
+        if not raw:
+            return ""
+
+        parsed = urlparse(raw if "://" in raw else f"https://{raw}")
+        host = (parsed.netloc or parsed.path or "").strip().strip("/")
+
+        bucket = str(self._settings.oss_bucket_name or "").strip()
+        bucket_prefix = f"{bucket}."
+        if bucket and host.lower().startswith(bucket_prefix.lower()):
+            host = host[len(bucket_prefix) :]
+
+        return host
+
+    def _bucket_endpoint_url(self) -> str:
+        host = self._normalized_endpoint_host()
+        return f"https://{host}" if host else ""
 
     def _cdn_url(self, key: str) -> str:
         s = self._settings
@@ -93,7 +120,7 @@ class OSSService:
                 raise RuntimeError("oss2 is required for OSS upload") from exc
 
             auth = oss2.Auth(s.oss_access_key_id, s.oss_access_key_secret)
-            bucket = oss2.Bucket(auth, f"https://{s.oss_endpoint}", s.oss_bucket_name)
+            bucket = oss2.Bucket(auth, self._bucket_endpoint_url(), s.oss_bucket_name)
             result = bucket.put_object(key, file_content)
             if not (200 <= int(getattr(result, "status", 500)) < 300):
                 raise RuntimeError("Failed to upload bundle to OSS")
@@ -129,7 +156,7 @@ class OSSService:
                 return
             try:
                 auth = oss2.Auth(s.oss_access_key_id, s.oss_access_key_secret)
-                bucket = oss2.Bucket(auth, f"https://{s.oss_endpoint}", s.oss_bucket_name)
+                bucket = oss2.Bucket(auth, self._bucket_endpoint_url(), s.oss_bucket_name)
                 bucket.delete_object(key)
             except Exception:
                 return
@@ -204,7 +231,7 @@ class OSSService:
 
         try:
             auth = oss2.Auth(s.oss_access_key_id, s.oss_access_key_secret)
-            bucket = oss2.Bucket(auth, f"https://{s.oss_endpoint}", s.oss_bucket_name)
+            bucket = oss2.Bucket(auth, self._bucket_endpoint_url(), s.oss_bucket_name)
             return bucket.sign_url("GET", key, expires_seconds)
         except Exception:
             return None
@@ -218,8 +245,12 @@ class OSSService:
         try:
             import oss2
             auth = oss2.Auth(s.oss_access_key_id, s.oss_access_key_secret)
-            bucket = oss2.Bucket(auth, f"https://{s.oss_endpoint}", s.oss_bucket_name)
-            return bucket.sign_url("PUT", key, expires_seconds)
+            bucket = oss2.Bucket(auth, self._bucket_endpoint_url(), s.oss_bucket_name)
+            try:
+                return bucket.sign_url("PUT", key, expires_seconds, slash_safe=True)
+            except TypeError:
+                # Older oss2 versions may not support slash_safe kwarg.
+                return bucket.sign_url("PUT", key, expires_seconds)
         except Exception as exc:
             raise RuntimeError(f"Failed to generate presigned PUT URL: {exc}") from exc
 
