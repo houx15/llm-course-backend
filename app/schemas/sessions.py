@@ -1,7 +1,8 @@
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ── Session registration ──────────────────────────────────────────────────────
@@ -67,6 +68,18 @@ class UploadUrlRequest(BaseModel):
     filename: str
     file_size_bytes: int = Field(gt=0)
 
+    @field_validator("filename")
+    @classmethod
+    def validate_filename(cls, value: str) -> str:
+        name = str(value or "").strip()
+        if not name:
+            raise ValueError("filename is required")
+        if name != Path(name).name or "/" in name or "\\" in name:
+            raise ValueError("invalid filename")
+        if Path(name).suffix.lower() not in {".py", ".ipynb"}:
+            raise ValueError("only .py and .ipynb files can be uploaded")
+        return name
+
 
 class UploadUrlResponse(BaseModel):
     presigned_url: str
@@ -79,6 +92,18 @@ class ConfirmUploadRequest(BaseModel):
     chapter_id: str
     file_size_bytes: int = Field(gt=0)
     session_id: str = ""
+
+    @field_validator("filename")
+    @classmethod
+    def validate_filename(cls, value: str) -> str:
+        name = str(value or "").strip()
+        if not name:
+            raise ValueError("filename is required")
+        if name != Path(name).name or "/" in name or "\\" in name:
+            raise ValueError("invalid filename")
+        if Path(name).suffix.lower() not in {".py", ".ipynb"}:
+            raise ValueError("only .py and .ipynb files can be uploaded")
+        return name
 
 
 class ConfirmUploadResponse(BaseModel):
