@@ -169,9 +169,9 @@ def upsert_report(
 @router.get("/chapters/{chapter_id:path}/session-state", response_model=SessionStateResponse)
 def get_session_state(
     chapter_id: str,
-    course_id: str | None = Query(default=None),
     current_user: CurrentUser,
     db: Session = Depends(get_db),
+    course_id: str | None = Query(default=None),
 ) -> SessionStateResponse:
     stmt = (
         select(LearningSession)
