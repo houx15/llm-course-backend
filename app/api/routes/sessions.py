@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -42,7 +42,7 @@ router = APIRouter(prefix="/v1", tags=["sessions"])
 
 # ── Session registration ──────────────────────────────────────────────────────
 
-@router.post("/chapters/{chapter_id}/sessions", response_model=CreateSessionResponse, status_code=201)
+@router.post("/chapters/{chapter_id:path}/sessions", response_model=CreateSessionResponse, status_code=201)
 def create_session(
     chapter_id: str,
     payload: CreateSessionRequest,
@@ -166,13 +166,14 @@ def upsert_report(
 
 # ── Recovery fetch ────────────────────────────────────────────────────────────
 
-@router.get("/chapters/{chapter_id}/session-state", response_model=SessionStateResponse)
+@router.get("/chapters/{chapter_id:path}/session-state", response_model=SessionStateResponse)
 def get_session_state(
     chapter_id: str,
+    course_id: str | None = Query(default=None),
     current_user: CurrentUser,
     db: Session = Depends(get_db),
 ) -> SessionStateResponse:
-    session = db.execute(
+    stmt = (
         select(LearningSession)
         .where(
             LearningSession.user_id == current_user.id,
@@ -180,7 +181,11 @@ def get_session_state(
         )
         .order_by(LearningSession.last_active_at.desc())
         .limit(1)
-    ).scalars().first()
+    )
+    if course_id:
+        stmt = stmt.where(LearningSession.course_id == course_id)
+
+    session = db.execute(stmt).scalars().first()
 
     if not session:
         return SessionStateResponse(has_data=False)
