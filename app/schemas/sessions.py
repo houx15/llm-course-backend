@@ -84,6 +84,7 @@ class UploadUrlRequest(BaseModel):
 class UploadUrlResponse(BaseModel):
     presigned_url: str
     oss_key: str
+    required_headers: dict[str, str] = {}
 
 
 class ConfirmUploadRequest(BaseModel):

@@ -237,7 +237,12 @@ class OSSService:
             return None
 
 
-    def sign_put_url(self, key: str, expires_seconds: int = 300) -> str:
+    def sign_put_url(
+        self,
+        key: str,
+        expires_seconds: int = 300,
+        headers: dict[str, str] | None = None,
+    ) -> str:
         """Return a presigned PUT URL for direct client upload."""
         s = self._settings
         if not (s.oss_access_key_id and s.oss_access_key_secret and s.oss_bucket_name and s.oss_endpoint):
@@ -247,10 +252,21 @@ class OSSService:
             auth = oss2.Auth(s.oss_access_key_id, s.oss_access_key_secret)
             bucket = oss2.Bucket(auth, self._bucket_endpoint_url(), s.oss_bucket_name)
             try:
-                return bucket.sign_url("PUT", key, expires_seconds, slash_safe=True)
+                return bucket.sign_url(
+                    "PUT",
+                    key,
+                    expires_seconds,
+                    headers=headers or {},
+                    slash_safe=True,
+                )
             except TypeError:
                 # Older oss2 versions may not support slash_safe kwarg.
-                return bucket.sign_url("PUT", key, expires_seconds)
+                return bucket.sign_url(
+                    "PUT",
+                    key,
+                    expires_seconds,
+                    headers=headers or {},
+                )
         except Exception as exc:
             raise RuntimeError(f"Failed to generate presigned PUT URL: {exc}") from exc
 

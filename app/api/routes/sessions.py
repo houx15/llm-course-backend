@@ -242,12 +242,25 @@ async def get_upload_url(
         )
 
     oss_key = f"user/{current_user.id}/workspace/{payload.chapter_id}/{payload.filename}"
+    required_headers = {"Content-Type": "application/octet-stream"}
 
     if not oss_service.is_enabled():
-        return UploadUrlResponse(presigned_url="http://localhost/dev-no-oss", oss_key=oss_key)
+        return UploadUrlResponse(
+            presigned_url="http://localhost/dev-no-oss",
+            oss_key=oss_key,
+            required_headers={},
+        )
 
-    presigned_url = oss_service.sign_put_url(oss_key, expires_seconds=300)
-    return UploadUrlResponse(presigned_url=presigned_url, oss_key=oss_key)
+    presigned_url = oss_service.sign_put_url(
+        oss_key,
+        expires_seconds=300,
+        headers=required_headers,
+    )
+    return UploadUrlResponse(
+        presigned_url=presigned_url,
+        oss_key=oss_key,
+        required_headers=required_headers,
+    )
 
 
 @router.post("/storage/workspace/confirm", response_model=ConfirmUploadResponse, status_code=201)
