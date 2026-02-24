@@ -21,11 +21,13 @@ from app.models import (
 )
 from app.schemas.sessions import (
     AppendTurnRequest,
+    ChapterSessionsResponse,
     ConfirmUploadRequest,
     ConfirmUploadResponse,
     CreateSessionRequest,
     CreateSessionResponse,
     SessionStateResponse,
+    SessionSummaryItem,
     SubmittedFileItem,
     SubmittedFilesResponse,
     TurnRecord,
@@ -62,6 +64,93 @@ def create_session(
     db.add(row)
     db.commit()
     return CreateSessionResponse(session_id=session_id, created_at=now)
+
+
+# ── List sessions for a chapter ───────────────────────────────────────────────
+
+
+@router.get("/chapters/{chapter_id:path}/sessions", response_model=ChapterSessionsResponse)
+def list_chapter_sessions(
+    chapter_id: str,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+    course_id: str | None = Query(default=None),
+) -> ChapterSessionsResponse:
+    stmt = (
+        select(LearningSession)
+        .where(
+            LearningSession.user_id == current_user.id,
+            LearningSession.chapter_id == chapter_id,
+        )
+        .order_by(LearningSession.last_active_at.desc())
+    )
+    if course_id:
+        stmt = stmt.where(LearningSession.course_id == course_id)
+
+    sessions = db.execute(stmt).scalars().all()
+
+    items = []
+    for s in sessions:
+        turn_count = db.execute(
+            select(func.count()).select_from(SessionTurnHistory).where(
+                SessionTurnHistory.session_id == s.session_id
+            )
+        ).scalar() or 0
+
+        items.append(SessionSummaryItem(
+            session_id=s.session_id,
+            created_at=s.created_at,
+            last_active_at=s.last_active_at,
+            turn_count=turn_count,
+        ))
+
+    return ChapterSessionsResponse(sessions=items)
+
+
+# ── Get session state by session_id ──────────────────────────────────────────
+
+
+@router.get("/sessions/{session_id}/state", response_model=SessionStateResponse)
+def get_session_state_by_id(
+    session_id: str,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+) -> SessionStateResponse:
+    session = _require_session_owner(db, session_id, current_user.id)
+
+    turns = db.execute(
+        select(SessionTurnHistory)
+        .where(SessionTurnHistory.session_id == session.session_id)
+        .order_by(SessionTurnHistory.turn_index)
+    ).scalars().all()
+
+    memory_row = db.execute(
+        select(SessionMemoryState).where(SessionMemoryState.session_id == session.session_id)
+    ).scalars().first()
+
+    report_row = db.execute(
+        select(SessionDynamicReport).where(SessionDynamicReport.session_id == session.session_id)
+    ).scalars().first()
+
+    if not turns and not memory_row:
+        return SessionStateResponse(has_data=False)
+
+    return SessionStateResponse(
+        has_data=True,
+        session_id=session.session_id,
+        turns=[
+            TurnRecord(
+                turn_index=t.turn_index,
+                user_message=t.user_message,
+                companion_response=t.companion_response,
+                turn_outcome=t.turn_outcome,
+                created_at=t.created_at,
+            )
+            for t in turns
+        ],
+        memory=memory_row.memory_json if memory_row else {},
+        report_md=report_row.report_md if report_row else None,
+    )
 
 
 # ── Turn append ───────────────────────────────────────────────────────────────

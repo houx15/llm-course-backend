@@ -58,6 +58,20 @@ class SessionStateResponse(BaseModel):
     report_md: str | None = None
 
 
+# ── Chapter sessions list ────────────────────────────────────────────────────
+
+
+class SessionSummaryItem(BaseModel):
+    session_id: str
+    created_at: datetime
+    last_active_at: datetime
+    turn_count: int
+
+
+class ChapterSessionsResponse(BaseModel):
+    sessions: list[SessionSummaryItem]
+
+
 # ── Workspace file submission ─────────────────────────────────────────────────
 
 USER_QUOTA_BYTES = 100 * 1024 * 1024  # 100 MB
