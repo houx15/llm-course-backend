@@ -31,6 +31,7 @@ class AppendTurnRequest(BaseModel):
 class UpsertMemoryRequest(BaseModel):
     chapter_id: str
     memory_json: dict[str, Any]
+    agent_state: dict[str, Any] | None = None
 
 
 # ── Report upsert ─────────────────────────────────────────────────────────────
@@ -56,6 +57,7 @@ class SessionStateResponse(BaseModel):
     turns: list[TurnRecord] = []
     memory: dict[str, Any] = {}
     report_md: str | None = None
+    agent_state: dict[str, Any] | None = None
 
 
 # ── Chapter sessions list ────────────────────────────────────────────────────

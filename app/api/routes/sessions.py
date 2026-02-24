@@ -150,6 +150,7 @@ def get_session_state_by_id(
         ],
         memory=memory_row.memory_json if memory_row else {},
         report_md=report_row.report_md if report_row else None,
+        agent_state=memory_row.agent_state_json if memory_row else None,
     )
 
 
@@ -206,6 +207,8 @@ def upsert_memory(
 
     if row:
         row.memory_json = payload.memory_json
+        if payload.agent_state is not None:
+            row.agent_state_json = payload.agent_state
         row.updated_at = datetime.now(timezone.utc)
     else:
         row = SessionMemoryState(
@@ -213,6 +216,7 @@ def upsert_memory(
             session_id=session_id,
             chapter_id=payload.chapter_id,
             memory_json=payload.memory_json,
+            agent_state_json=payload.agent_state,
             updated_at=datetime.now(timezone.utc),
         )
         db.add(row)
@@ -311,6 +315,7 @@ def get_session_state(
         ],
         memory=memory_row.memory_json if memory_row else {},
         report_md=report_row.report_md if report_row else None,
+        agent_state=memory_row.agent_state_json if memory_row else None,
     )
 
 

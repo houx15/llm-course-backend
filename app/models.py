@@ -180,6 +180,7 @@ class SessionMemoryState(Base):
     session_id: Mapped[str] = mapped_column(String(64), ForeignKey("learning_sessions.session_id"), nullable=False, unique=True)
     chapter_id: Mapped[str] = mapped_column(String(128), nullable=False)
     memory_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    agent_state_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
