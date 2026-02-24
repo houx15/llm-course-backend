@@ -97,6 +97,10 @@ def list_chapter_sessions(
             )
         ).scalar() or 0
 
+        # Skip dead sessions (created but never had any conversation)
+        if turn_count == 0:
+            continue
+
         items.append(SessionSummaryItem(
             session_id=s.session_id,
             created_at=s.created_at,
