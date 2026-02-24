@@ -197,6 +197,7 @@ class SessionDynamicReport(Base):
 
 class UserSubmittedFile(Base):
     __tablename__ = "user_submitted_files"
+    __table_args__ = (UniqueConstraint("user_id", "chapter_id", "filename", name="uq_user_chapter_filename"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
@@ -206,3 +207,5 @@ class UserSubmittedFile(Base):
     oss_key: Mapped[str] = mapped_column(String(500), nullable=False)
     file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")

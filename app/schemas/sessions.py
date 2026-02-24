@@ -79,6 +79,15 @@ class ChapterSessionsResponse(BaseModel):
 USER_QUOTA_BYTES = 100 * 1024 * 1024  # 100 MB
 
 
+def _validate_workspace_filename(value: str) -> str:
+    name = str(value or "").strip()
+    if not name:
+        raise ValueError("filename is required")
+    if name != Path(name).name or "/" in name or "\\" in name:
+        raise ValueError("invalid filename")
+    return name
+
+
 class UploadUrlRequest(BaseModel):
     chapter_id: str
     filename: str
@@ -87,14 +96,7 @@ class UploadUrlRequest(BaseModel):
     @field_validator("filename")
     @classmethod
     def validate_filename(cls, value: str) -> str:
-        name = str(value or "").strip()
-        if not name:
-            raise ValueError("filename is required")
-        if name != Path(name).name or "/" in name or "\\" in name:
-            raise ValueError("invalid filename")
-        if Path(name).suffix.lower() not in {".py", ".ipynb"}:
-            raise ValueError("only .py and .ipynb files can be uploaded")
-        return name
+        return _validate_workspace_filename(value)
 
 
 class UploadUrlResponse(BaseModel):
@@ -113,14 +115,7 @@ class ConfirmUploadRequest(BaseModel):
     @field_validator("filename")
     @classmethod
     def validate_filename(cls, value: str) -> str:
-        name = str(value or "").strip()
-        if not name:
-            raise ValueError("filename is required")
-        if name != Path(name).name or "/" in name or "\\" in name:
-            raise ValueError("invalid filename")
-        if Path(name).suffix.lower() not in {".py", ".ipynb"}:
-            raise ValueError("only .py and .ipynb files can be uploaded")
-        return name
+        return _validate_workspace_filename(value)
 
 
 class ConfirmUploadResponse(BaseModel):
@@ -135,6 +130,7 @@ class SubmittedFileItem(BaseModel):
     oss_key: str
     file_size_bytes: int
     submitted_at: datetime
+    updated_at: datetime | None = None
     download_url: str | None = None
 
 
@@ -142,3 +138,17 @@ class SubmittedFilesResponse(BaseModel):
     files: list[SubmittedFileItem]
     quota_used_bytes: int
     quota_limit_bytes: int
+
+
+# ── Chapter workspace files (sync) ──────────────────────────────────────────
+
+class ChapterFileItem(BaseModel):
+    filename: str
+    oss_key: str
+    file_size_bytes: int
+    updated_at: datetime
+    download_url: str | None = None
+
+
+class ChapterFilesResponse(BaseModel):
+    files: list[ChapterFileItem]

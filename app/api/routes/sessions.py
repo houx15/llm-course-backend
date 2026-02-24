@@ -21,6 +21,8 @@ from app.models import (
 )
 from app.schemas.sessions import (
     AppendTurnRequest,
+    ChapterFileItem,
+    ChapterFilesResponse,
     ChapterSessionsResponse,
     ConfirmUploadRequest,
     ConfirmUploadResponse,
@@ -371,28 +373,61 @@ def confirm_upload(
             message="Invalid oss_key for current user/chapter",
         )
 
-    # Serialize confirms per user so quota check + insert is atomic.
+    # Serialize confirms per user so quota check + upsert is atomic.
     db.execute(select(User.id).where(User.id == current_user.id).with_for_update()).scalar_one_or_none()
-    used = _quota_used(db, current_user.id)
-    if used + payload.file_size_bytes > USER_QUOTA_BYTES:
-        raise ApiError(
-            status_code=409,
-            code=ErrorCode.QUOTA_EXCEEDED,
-            message=f"存储空间不足 (已用 {used // (1024 * 1024)}MB / 100MB)",
-        )
 
-    row = UserSubmittedFile(
-        user_id=current_user.id,
-        session_id=payload.session_id,
-        chapter_id=payload.chapter_id,
-        filename=payload.filename,
-        oss_key=payload.oss_key,
-        file_size_bytes=payload.file_size_bytes,
-    )
-    db.add(row)
+    now = datetime.now(timezone.utc)
+
+    # Upsert: check if a row already exists for this user/chapter/filename.
+    existing = db.execute(
+        select(UserSubmittedFile).where(
+            UserSubmittedFile.user_id == current_user.id,
+            UserSubmittedFile.chapter_id == payload.chapter_id,
+            UserSubmittedFile.filename == payload.filename,
+        )
+    ).scalars().first()
+
+    if existing:
+        # Quota delta: new size minus old size (only count non-deleted towards quota).
+        old_size = existing.file_size_bytes if not existing.is_deleted else 0
+        delta = payload.file_size_bytes - old_size
+        used = _quota_used(db, current_user.id)
+        if delta > 0 and used + delta > USER_QUOTA_BYTES:
+            raise ApiError(
+                status_code=409,
+                code=ErrorCode.QUOTA_EXCEEDED,
+                message=f"存储空间不足 (已用 {used // (1024 * 1024)}MB / 100MB)",
+            )
+        existing.oss_key = payload.oss_key
+        existing.file_size_bytes = payload.file_size_bytes
+        existing.updated_at = now
+        existing.is_deleted = False
+        if payload.session_id:
+            existing.session_id = payload.session_id
+        new_used = used + delta
+    else:
+        used = _quota_used(db, current_user.id)
+        if used + payload.file_size_bytes > USER_QUOTA_BYTES:
+            raise ApiError(
+                status_code=409,
+                code=ErrorCode.QUOTA_EXCEEDED,
+                message=f"存储空间不足 (已用 {used // (1024 * 1024)}MB / 100MB)",
+            )
+        row = UserSubmittedFile(
+            user_id=current_user.id,
+            session_id=payload.session_id,
+            chapter_id=payload.chapter_id,
+            filename=payload.filename,
+            oss_key=payload.oss_key,
+            file_size_bytes=payload.file_size_bytes,
+            updated_at=now,
+        )
+        db.add(row)
+        new_used = used + payload.file_size_bytes
+
     db.commit()
     return ConfirmUploadResponse(
-        quota_used_bytes=used + payload.file_size_bytes,
+        quota_used_bytes=new_used,
         quota_limit_bytes=USER_QUOTA_BYTES,
     )
 
@@ -404,7 +439,7 @@ def list_submitted_files(
 ) -> SubmittedFilesResponse:
     rows = db.execute(
         select(UserSubmittedFile)
-        .where(UserSubmittedFile.user_id == current_user.id)
+        .where(UserSubmittedFile.user_id == current_user.id, UserSubmittedFile.is_deleted == False)  # noqa: E712
         .order_by(UserSubmittedFile.submitted_at.desc())
     ).scalars().all()
 
@@ -419,12 +454,72 @@ def list_submitted_files(
                 oss_key=r.oss_key,
                 file_size_bytes=r.file_size_bytes,
                 submitted_at=r.submitted_at,
+                updated_at=r.updated_at,
                 download_url=download_url,
             )
         )
 
     used = _quota_used(db, current_user.id)
     return SubmittedFilesResponse(files=items, quota_used_bytes=used, quota_limit_bytes=USER_QUOTA_BYTES)
+
+
+# ── Chapter workspace files (sync download) ─────────────────────────────────
+
+@router.get("/storage/workspace/chapter-files/{chapter_id}", response_model=ChapterFilesResponse)
+def list_chapter_files(
+    chapter_id: str,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+) -> ChapterFilesResponse:
+    """Return non-deleted files for a specific chapter (used for sync-on-enter)."""
+    rows = db.execute(
+        select(UserSubmittedFile)
+        .where(
+            UserSubmittedFile.user_id == current_user.id,
+            UserSubmittedFile.chapter_id == chapter_id,
+            UserSubmittedFile.is_deleted == False,  # noqa: E712
+        )
+        .order_by(UserSubmittedFile.filename)
+    ).scalars().all()
+
+    items = []
+    for r in rows:
+        download_url = oss_service.resolve_download_url(r.oss_key) if oss_service.is_enabled() else None
+        items.append(
+            ChapterFileItem(
+                filename=r.filename,
+                oss_key=r.oss_key,
+                file_size_bytes=r.file_size_bytes,
+                updated_at=r.updated_at,
+                download_url=download_url,
+            )
+        )
+
+    return ChapterFilesResponse(files=items)
+
+
+@router.delete("/storage/workspace/chapter-files/{chapter_id}/{filename}")
+def delete_chapter_file(
+    chapter_id: str,
+    filename: str,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+) -> dict:
+    """Soft-delete a workspace file so it won't be downloaded on next sync."""
+    row = db.execute(
+        select(UserSubmittedFile).where(
+            UserSubmittedFile.user_id == current_user.id,
+            UserSubmittedFile.chapter_id == chapter_id,
+            UserSubmittedFile.filename == filename,
+        )
+    ).scalars().first()
+
+    if row and not row.is_deleted:
+        row.is_deleted = True
+        row.updated_at = datetime.now(timezone.utc)
+        db.commit()
+
+    return {"deleted": True}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -441,7 +536,8 @@ def _require_session_owner(db: Session, session_id: str, user_id: uuid.UUID) -> 
 def _quota_used(db: Session, user_id: uuid.UUID) -> int:
     result = db.execute(
         select(func.coalesce(func.sum(UserSubmittedFile.file_size_bytes), 0)).where(
-            UserSubmittedFile.user_id == user_id
+            UserSubmittedFile.user_id == user_id,
+            UserSubmittedFile.is_deleted == False,  # noqa: E712
         )
     ).scalar()
     return int(result)
