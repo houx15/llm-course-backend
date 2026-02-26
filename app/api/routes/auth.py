@@ -9,7 +9,7 @@ from app.core.error_codes import ErrorCode
 from app.core.errors import ApiError
 from app.core.security import create_access_token, generate_email_code, hash_password, hash_text, now_utc, verify_password
 from app.db.session import get_db
-from app.models import DeviceSession, EmailVerificationCode, User
+from app.models import Course, DeviceSession, EmailVerificationCode, Enrollment, InviteCode, User
 from app.schemas.auth import (
     AuthResponse,
     EmailCodeRequest,
@@ -98,6 +98,16 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> AuthRes
     if exists:
         raise ApiError(status_code=400, code=ErrorCode.EMAIL_ALREADY_REGISTERED, message="Email already registered")
 
+    # Validate invite code
+    invite_code_str = payload.invite_code.strip().upper()
+    invite = db.execute(
+        select(InviteCode).where(InviteCode.code == invite_code_str)
+    ).scalars().first()
+    if not invite:
+        raise ApiError(status_code=400, code=ErrorCode.INVALID_INVITE_CODE, message="邀请码无效")
+    if invite.used_at is not None:
+        raise ApiError(status_code=400, code=ErrorCode.INVALID_INVITE_CODE, message="邀请码已被使用")
+
     consume_verification_code(db, email=email, purpose="register", code=payload.verification_code)
 
     display_name = payload.display_name or email.split("@")[0]
@@ -108,6 +118,19 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> AuthRes
         status="active",
     )
     db.add(user)
+    db.flush()
+
+    # Mark invite code as used
+    invite.used_by_user_id = user.id
+    invite.used_at = now_utc()
+
+    # Auto-enroll in all public courses
+    public_courses = db.execute(
+        select(Course).where(Course.is_public.is_(True), Course.is_active.is_(True))
+    ).scalars().all()
+    for course in public_courses:
+        db.add(Enrollment(user_id=user.id, course_id=course.id, status="active"))
+
     db.commit()
     db.refresh(user)
 

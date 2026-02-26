@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     smtp_username: str = ""
     smtp_password: str = ""
     smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
     smtp_from_email: str = ""
+    smtp_from_alias: str = ""
 
     auth_code_window_seconds: int = 600
     auth_code_max_per_email_window: int = 5

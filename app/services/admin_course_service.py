@@ -20,6 +20,7 @@ def create_course_with_chapters(db: Session, payload: AdminCourseCreateRequest) 
             instructor=payload.instructor.strip(),
             semester=payload.semester.strip(),
             is_active=payload.is_active,
+            is_public=payload.is_public,
         )
         db.add(course)
         db.flush()

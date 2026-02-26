@@ -18,6 +18,7 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     display_name: str | None = Field(default=None, min_length=1, max_length=120)
     device_id: str = Field(min_length=1, max_length=255)
+    invite_code: str = Field(min_length=4, max_length=32)
 
 
 class LoginRequest(BaseModel):

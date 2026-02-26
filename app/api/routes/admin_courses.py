@@ -38,6 +38,7 @@ def _course_response(course: Course) -> AdminCourseResponse:
         instructor=course.instructor,
         semester=course.semester,
         is_active=course.is_active,
+        is_public=course.is_public,
         created_at=course.created_at.isoformat(),
     )
 

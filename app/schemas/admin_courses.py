@@ -16,6 +16,7 @@ class AdminCourseCreateRequest(BaseModel):
     instructor: str = ""
     semester: str = ""
     is_active: bool = True
+    is_public: bool = False
     chapters: list[AdminChapterCreate] = Field(default_factory=list)
 
 
@@ -27,6 +28,7 @@ class AdminCourseResponse(BaseModel):
     instructor: str
     semester: str
     is_active: bool
+    is_public: bool
     created_at: str
 
 
