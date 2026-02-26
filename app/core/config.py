@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     auth_code_max_per_ip_window: int = 20
     auth_code_cooldown_seconds: int = 30
 
+    waitlist_window_seconds: int = 3600
+    waitlist_max_per_ip_window: int = 10
+    waitlist_max_per_email_window: int = 3
+    waitlist_cooldown_seconds: int = 60
+
     seed_data: bool = True
     admin_api_key: str = ""
 

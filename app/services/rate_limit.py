@@ -31,6 +31,32 @@ def _latest_event(db: Session, action: str, identifier: str):
     return db.execute(stmt).scalars().first()
 
 
+def check_and_record_waitlist_request(db: Session, email: str, client_ip: str) -> None:
+    """Rate-limit waitlist submissions by IP and email."""
+    now = now_utc()
+    window_since = now - timedelta(seconds=settings.waitlist_window_seconds)
+
+    ip_action = "waitlist_ip"
+    email_action = "waitlist_email"
+
+    ip_count = _count_events(db, ip_action, client_ip, window_since)
+    if ip_count >= settings.waitlist_max_per_ip_window:
+        raise ApiError(status_code=429, code=ErrorCode.TOO_MANY_REQUESTS, message="请求过于频繁，请稍后再试")
+
+    email_count = _count_events(db, email_action, email, window_since)
+    if email_count >= settings.waitlist_max_per_email_window:
+        raise ApiError(status_code=429, code=ErrorCode.TOO_MANY_REQUESTS, message="该邮箱请求过于频繁，请稍后再试")
+
+    latest = _latest_event(db, email_action, email)
+    if latest:
+        cooldown = (now - latest.created_at).total_seconds()
+        if cooldown < settings.waitlist_cooldown_seconds:
+            raise ApiError(status_code=429, code=ErrorCode.TOO_MANY_REQUESTS, message="请稍等片刻后再试")
+
+    db.add(AuthRateLimitEvent(action=ip_action, identifier=client_ip, created_at=now))
+    db.add(AuthRateLimitEvent(action=email_action, identifier=email, created_at=now))
+
+
 def check_and_record_email_code_request(db: Session, email: str, client_ip: str) -> None:
     now = now_utc()
     window_since = now - timedelta(seconds=settings.auth_code_window_seconds)
