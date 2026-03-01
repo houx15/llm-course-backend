@@ -1,12 +1,14 @@
-FROM python:3.11-slim
+FROM python:3.12
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
+RUN python3 -m pip install -U uv -i https://mirrors.aliyun.com/pypi/simple --break-system-packages
+
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir uv && uv sync --no-dev --no-install-project
+RUN uv sync --no-dev --no-install-project
 
 COPY app ./app
 COPY alembic.ini ./alembic.ini
