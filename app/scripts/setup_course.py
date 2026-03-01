@@ -54,7 +54,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--admin-key", required=True, help="Admin API key")
     parser.add_argument("--instructor", default=None, help="Instructor name (overrides course_overview.json)")
     parser.add_argument("--semester", default=None, help="Semester label (overrides course_overview.json)")
-    parser.add_argument("--public", action="store_true", help="Mark course as public (auto-enroll on registration)")
+    parser.add_argument("--public", action="store_true", default=None, help="Mark course as public (overrides course_overview.json)")
     parser.add_argument("--dry-run", action="store_true", help="Print what would be done without calling the API")
     return parser.parse_args()
 
@@ -95,6 +95,7 @@ def main() -> int:
     description = overview.get("description", "")
     instructor = args.instructor or overview.get("instructor", "") or "AI Tutor"
     semester = args.semester if args.semester is not None else overview.get("semester", "")
+    is_public = args.public if args.public is not None else overview.get("is_public", False)
     course_code = args.course_code.strip().upper()
     chapters = discover_chapters(course_dir)
 
@@ -132,7 +133,7 @@ def main() -> int:
         "overview_necessity": overview.get("overview", {}).get("necessity", ""),
         "overview_journey": overview.get("overview", {}).get("journey", ""),
         "is_active": True,
-        "is_public": args.public,
+        "is_public": is_public,
         "chapters": chapter_payloads,
     }
 
