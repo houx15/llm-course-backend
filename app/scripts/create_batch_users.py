@@ -1,10 +1,11 @@
 """Create users from CSV and enroll them in public courses + specified courses.
 
 CSV format (header required):
-    username,display_name,invite_codes
-    pangxun,庞珣,
-    tangshiyun,唐诗韵,ABC123;DEF456
+    username,display_name,password,invite_codes
+    pangxun,庞珣,MyPass123!,
+    tangshiyun,唐诗韵,HerPass456!,ABC123;DEF456
 
+- password: per-user password (required, min 8 chars)
 - invite_codes: semicolon-separated invite codes (optional)
 - All users are auto-enrolled in public active courses
 - If invite_codes are provided, also enrolled in those courses
@@ -39,9 +40,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Create users from CSV and enroll in public + specified courses.",
     )
-    parser.add_argument("--csv", required=True, type=Path, help="Path to CSV file (username,display_name,invite_codes)")
+    parser.add_argument("--csv", required=True, type=Path, help="Path to CSV file (username,display_name,password,invite_codes)")
     parser.add_argument("--domain", default="knoweia.com", help="Email domain (default: knoweia.com)")
-    parser.add_argument("--password", required=True, help="Shared password for all users")
     parser.add_argument("--dry-run", action="store_true", help="Print what would be done without writing to DB")
     return parser.parse_args()
 
@@ -50,14 +50,23 @@ def load_users_from_csv(csv_path: Path) -> list[dict[str, Any]]:
     users: list[dict[str, Any]] = []
     with csv_path.open(encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        for row in reader:
+        for i, row in enumerate(reader, start=2):
             username = row.get("username", "").strip()
             display_name = row.get("display_name", "").strip()
+            password = row.get("password", "").strip()
             invite_codes_raw = row.get("invite_codes", "").strip()
             if not username:
                 continue
+            if not password or len(password) < 8:
+                print(f"Error: row {i} ({username}): password missing or < 8 chars", file=sys.stderr)
+                return []
             invite_codes = [c.strip().upper() for c in invite_codes_raw.split(";") if c.strip()] if invite_codes_raw else []
-            users.append({"username": username, "display_name": display_name or username, "invite_codes": invite_codes})
+            users.append({
+                "username": username,
+                "display_name": display_name or username,
+                "password": password,
+                "invite_codes": invite_codes,
+            })
     return users
 
 
@@ -65,19 +74,14 @@ def main() -> int:
     args = parse_args()
     csv_path: Path = args.csv.resolve()
     domain = args.domain.strip().lstrip("@")
-    password = args.password
 
     if not csv_path.is_file():
         print(f"Error: CSV file not found: {csv_path}", file=sys.stderr)
         return 1
 
-    if len(password) < 8:
-        print("Error: password must be at least 8 characters", file=sys.stderr)
-        return 2
-
     users = load_users_from_csv(csv_path)
     if not users:
-        print("Error: no users found in CSV", file=sys.stderr)
+        print("Error: no valid users found in CSV", file=sys.stderr)
         return 1
 
     print(f"Loaded {len(users)} user(s) from {csv_path.name}")
@@ -100,7 +104,6 @@ def main() -> int:
             ).scalars().all()
             invite_course_map = {c.invite_code: c for c in specific_courses if c.invite_code}
 
-            # Warn about unknown invite codes
             found_codes = set(invite_course_map.keys())
             missing = all_invite_codes - found_codes
             if missing:
@@ -120,21 +123,21 @@ def main() -> int:
                 email = f"{u['username']}@{domain}"
                 print(f"  User: {email}  ({u['display_name']})")
                 for c in public_courses:
-                    print(f"    → [public] {c.title}")
+                    print(f"    -> [public] {c.title}")
                 for code in u["invite_codes"]:
                     c = invite_course_map.get(code)
                     if c:
-                        print(f"    → [invite] {c.title}")
+                        print(f"    -> [invite] {c.title}")
                     else:
-                        print(f"    → [invite] {code} (NOT FOUND)")
+                        print(f"    -> [invite] {code} (NOT FOUND)")
             return 0
 
-        pw_hash = hash_password(password)
         results = []
 
         for u in users:
             email = f"{u['username']}@{domain}"
             display_name = u["display_name"]
+            pw_hash = hash_password(u["password"])
 
             # Create or update user
             user = db.execute(select(User).where(User.email == email)).scalars().first()
