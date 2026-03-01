@@ -12,6 +12,7 @@ from app.schemas.admin_courses import (
     AdminCourseListResponse,
     AdminCourseResponse,
     AdminCourseSummaryResponse,
+    AdminCourseUpdateRequest,
     AdminCourseWithChaptersResponse,
 )
 from app.services.admin_course_service import (
@@ -23,6 +24,7 @@ from app.services.admin_course_service import (
     list_all_courses,
     list_course_chapters_with_bundle_flag,
     update_chapter_intro,
+    update_course,
     upsert_course_chapter,
 )
 
@@ -37,6 +39,11 @@ def _course_response(course: Course) -> AdminCourseResponse:
         description=course.description,
         instructor=course.instructor,
         semester=course.semester,
+        invite_code=course.invite_code,
+        overview_experience=course.overview_experience,
+        overview_gains=course.overview_gains,
+        overview_necessity=course.overview_necessity,
+        overview_journey=course.overview_journey,
         is_active=course.is_active,
         is_public=course.is_public,
         created_at=course.created_at.isoformat(),
@@ -94,6 +101,20 @@ def get_course(
     )
 
 
+@router.patch("/{course_id}", response_model=AdminCourseWithChaptersResponse)
+def update_course_endpoint(
+    course_id: str,
+    payload: AdminCourseUpdateRequest,
+    db: Session = Depends(get_db),
+) -> AdminCourseWithChaptersResponse:
+    course = update_course(db, course_id, payload)
+    chapters = list_course_chapters_with_bundle_flag(db, str(course.id))
+    return AdminCourseWithChaptersResponse(
+        **_course_response(course).model_dump(),
+        chapters=[_chapter_response(chapter, has_bundle=has_bundle) for chapter, has_bundle in chapters],
+    )
+
+
 @router.put("/{course_id}/chapters/{chapter_code}", response_model=AdminChapterResponse)
 def upsert_chapter(
     course_id: str,
@@ -103,7 +124,7 @@ def upsert_chapter(
 ) -> AdminChapterResponse:
     get_course_or_404(db, course_id)
     chapter = upsert_course_chapter(db, course_id=course_id, chapter_code=chapter_code, payload=payload)
-    return _chapter_response(chapter, has_bundle=has_chapter_bundle(db, course_id=course_id, chapter_code=chapter.chapter_code))
+    return _chapter_response(chapter, has_bundle=has_chapter_bundle(db, chapter_id=str(chapter.id)))
 
 
 @router.patch("/{course_id}/chapters/{chapter_code}/intro", response_model=AdminChapterResponse)
@@ -114,7 +135,7 @@ def patch_chapter_intro(
     db: Session = Depends(get_db),
 ) -> AdminChapterResponse:
     chapter = update_chapter_intro(db, course_id=course_id, chapter_code=chapter_code, intro_text=payload.intro_text)
-    return _chapter_response(chapter, has_bundle=has_chapter_bundle(db, course_id=course_id, chapter_code=chapter.chapter_code))
+    return _chapter_response(chapter, has_bundle=has_chapter_bundle(db, chapter_id=str(chapter.id)))
 
 
 @router.delete("/{course_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import func as sa_func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser
 from app.core.error_codes import ErrorCode
 from app.core.errors import ApiError
 from app.db.session import get_db
-from app.models import Course, CourseChapter, Enrollment
+from app.models import BundleRelease, CourseChapter, Enrollment
 from app.schemas.updates import CheckAppRequest, CheckAppResponse, CheckChapterRequest, CheckChapterResolved, CheckChapterResponse, RuntimeConfigResponse
 from app.services.update_service import check_bundle_required, latest_bundle_release
 
@@ -41,6 +41,31 @@ def check_app_updates(
     templates_required = check_bundle_required(payload.installed.get("curriculum_templates"), templates_release)
     if templates_required:
         optional.append(templates_required)
+
+    # Individual expert bundles — download all at app level, not per-chapter.
+    subq = (
+        select(
+            BundleRelease.scope_id,
+            sa_func.max(BundleRelease.created_at).label("max_created_at"),
+        )
+        .where(BundleRelease.bundle_type == "experts")
+        .group_by(BundleRelease.scope_id)
+        .subquery()
+    )
+    expert_releases = db.execute(
+        select(BundleRelease)
+        .join(
+            subq,
+            (BundleRelease.scope_id == subq.c.scope_id)
+            & (BundleRelease.created_at == subq.c.max_created_at)
+            & (BundleRelease.bundle_type == "experts"),
+        )
+    ).scalars().all()
+    for er in expert_releases:
+        installed_key = f"experts:{er.scope_id}"
+        expert_required = check_bundle_required(payload.installed.get(installed_key), er)
+        if expert_required:
+            optional.append(expert_required)
 
     # Python runtime bundle (sidecar).
     # Try platform-specific scope first, then well-known generic scopes, then any python_runtime.
@@ -79,22 +104,14 @@ def check_chapter_updates(
     if not enrollment:
         raise ApiError(status_code=403, code=ErrorCode.COURSE_ACCESS_DENIED, message="Course not enrolled")
 
-    chapter = db.execute(
-        select(CourseChapter).where(
-            CourseChapter.course_id == payload.course_id,
-            CourseChapter.chapter_code == payload.chapter_id,
-            CourseChapter.is_active.is_(True),
-        )
-    ).scalars().first()
-    if not chapter:
+    # chapter_id is now the chapter UUID
+    chapter = db.get(CourseChapter, payload.chapter_id)
+    if not chapter or str(chapter.course_id) != payload.course_id or not chapter.is_active:
         raise ApiError(status_code=404, code=ErrorCode.CHAPTER_NOT_FOUND, message="Chapter not found")
 
-    # Use course_code (stable across deployments) for bundle scope_id lookup.
-    course = db.get(Course, payload.course_id)
-    course_code = course.course_code if course else payload.course_id
-
     required = []
-    chapter_scope = f"{course_code}/{payload.chapter_id}"
+    # Use chapter UUID as scope for bundle lookup
+    chapter_scope = str(chapter.id)
     chapter_release = latest_bundle_release(db, bundle_type="chapter", scope_id=chapter_scope)
     chapter_required = check_bundle_required(payload.installed.chapter_bundle, chapter_release)
     if chapter_required:

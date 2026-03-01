@@ -62,6 +62,7 @@ class Course(Base):
     overview_necessity: Mapped[str] = mapped_column(Text, nullable=False, default="")
     overview_journey: Mapped[str] = mapped_column(Text, nullable=False, default="")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    invite_code: Mapped[str | None] = mapped_column(String(8), unique=True, index=True, nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

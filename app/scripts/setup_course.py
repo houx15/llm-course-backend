@@ -125,6 +125,10 @@ def main() -> int:
         "description": description,
         "instructor": args.instructor,
         "semester": args.semester,
+        "overview_experience": overview.get("overview", {}).get("experience", ""),
+        "overview_gains": overview.get("overview", {}).get("gains", ""),
+        "overview_necessity": overview.get("overview", {}).get("necessity", ""),
+        "overview_journey": overview.get("overview", {}).get("journey", ""),
         "is_active": True,
         "is_public": args.public,
         "chapters": chapter_payloads,
@@ -137,7 +141,10 @@ def main() -> int:
         if resp.status_code == 201:
             result = resp.json()
             print(f"\nCreated course id={result['id']}")
-            print(f"  chapters: {len(result.get('chapters', []))}")
+            print(f"  Invite Code: {result.get('invite_code', 'N/A')}")
+            print(f"  Chapters ({len(result.get('chapters', []))}):")
+            for ch in result.get("chapters", []):
+                print(f"    {ch['chapter_code']} -> UUID: {ch['id']}")
             print("Done.")
             return 0
 

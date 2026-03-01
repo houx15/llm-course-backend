@@ -70,7 +70,8 @@ def parse_args() -> argparse.Namespace:
         help="Derive version from pyproject.toml + git commit count (e.g. 0.1.0-build.42)",
     )
 
-    parser.add_argument("--scope-id", default=None, help="Override scope_id (default: course_id/chapter_code)")
+    parser.add_argument("--chapter-id", default=None, help="Chapter UUID (from setup_course.py output) — used as scope_id")
+    parser.add_argument("--scope-id", default=None, help="Override scope_id (default: chapter UUID via --chapter-id)")
     parser.add_argument("--dry-run", action="store_true", help="Build bundle but skip upload")
     parser.add_argument("--keep-bundle", action="store_true", help="Keep the .tar.gz after upload")
     return parser.parse_args()
@@ -174,10 +175,16 @@ def main() -> int:
     version = _auto_version() if args.auto_version else args.version
     print(f"Version: {version}")
 
+    # --chapter-id takes precedence as scope_id if --scope-id not explicitly set
+    scope_override = args.scope_id or args.chapter_id
+
     # Collect chapter directories
     if args.chapter_dir:
         chapter_dirs = [args.chapter_dir.resolve()]
     else:
+        if scope_override:
+            print("Error: --chapter-id/--scope-id cannot be used with --course-dir (would apply same scope to all chapters)", file=sys.stderr)
+            return 1
         course_dir = args.course_dir.resolve()
         chapters_root = course_dir / "chapters"
         if not chapters_root.is_dir():
@@ -201,7 +208,7 @@ def main() -> int:
                 server=args.server,
                 admin_key=args.admin_key,
                 version=version,
-                scope_id_override=args.scope_id,
+                scope_id_override=scope_override,
                 dry_run=args.dry_run,
                 keep_bundle=args.keep_bundle,
                 output_dir=output_dir,

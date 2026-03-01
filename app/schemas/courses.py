@@ -7,6 +7,7 @@ class CourseSummary(BaseModel):
     course_code: str
     instructor: str
     semester: str
+    description: str = ""
     joined_at: str
 
 
@@ -45,6 +46,10 @@ class ChapterItem(BaseModel):
     status: str
     locked: bool
     order: int
+    bundle_url: str | None = None
+    bundle_version: str | None = None
+    bundle_sha256: str | None = None
+    bundle_size_bytes: int | None = None
 
 
 class CourseChaptersResponse(BaseModel):

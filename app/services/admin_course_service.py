@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import secrets
+import string
+
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -11,6 +14,16 @@ from app.models import BundleRelease, ChapterProgress, Course, CourseChapter, En
 from app.schemas.admin_courses import AdminChapterCreate, AdminChapterUpsertRequest, AdminCourseCreateRequest
 
 
+def _generate_invite_code(db: Session, length: int = 6) -> str:
+    chars = string.ascii_uppercase + string.digits
+    for _ in range(50):
+        code = "".join(secrets.choice(chars) for _ in range(length))
+        exists = db.execute(select(Course.id).where(Course.invite_code == code)).scalar_one_or_none()
+        if not exists:
+            return code
+    raise RuntimeError("Failed to generate unique invite code")
+
+
 def create_course_with_chapters(db: Session, payload: AdminCourseCreateRequest) -> Course:
     try:
         course = Course(
@@ -19,6 +32,11 @@ def create_course_with_chapters(db: Session, payload: AdminCourseCreateRequest) 
             description=payload.description.strip(),
             instructor=payload.instructor.strip(),
             semester=payload.semester.strip(),
+            overview_experience=payload.overview_experience.strip(),
+            overview_gains=payload.overview_gains.strip(),
+            overview_necessity=payload.overview_necessity.strip(),
+            overview_journey=payload.overview_journey.strip(),
+            invite_code=_generate_invite_code(db),
             is_active=payload.is_active,
             is_public=payload.is_public,
         )
@@ -55,6 +73,20 @@ def get_course_or_404(db: Session, course_id: str) -> Course:
     return course
 
 
+def update_course(db: Session, course_id: str, payload) -> Course:
+    course = get_course_or_404(db, course_id)
+    for field in [
+        "title", "description", "instructor", "semester", "is_active", "is_public",
+        "overview_experience", "overview_gains", "overview_necessity", "overview_journey",
+    ]:
+        value = getattr(payload, field, None)
+        if value is not None:
+            setattr(course, field, value.strip() if isinstance(value, str) else value)
+    db.commit()
+    db.refresh(course)
+    return course
+
+
 def list_course_chapters_with_bundle_flag(db: Session, course_id: str) -> list[tuple[CourseChapter, bool]]:
     chapters = db.execute(
         select(CourseChapter).where(CourseChapter.course_id == course_id).order_by(CourseChapter.sort_order.asc())
@@ -62,7 +94,8 @@ def list_course_chapters_with_bundle_flag(db: Session, course_id: str) -> list[t
     if not chapters:
         return []
 
-    scopes = [f"{course_id}/{chapter.chapter_code}" for chapter in chapters]
+    # Use chapter UUID as scope_id for bundle lookup
+    scopes = [str(chapter.id) for chapter in chapters]
     available_scopes = set(
         db.execute(
             select(BundleRelease.scope_id).where(
@@ -71,13 +104,13 @@ def list_course_chapters_with_bundle_flag(db: Session, course_id: str) -> list[t
             )
         ).scalars().all()
     )
-    return [(chapter, f"{course_id}/{chapter.chapter_code}" in available_scopes) for chapter in chapters]
+    return [(chapter, str(chapter.id) in available_scopes) for chapter in chapters]
 
 
-def has_chapter_bundle(db: Session, *, course_id: str, chapter_code: str) -> bool:
-    scope = f"{course_id}/{chapter_code}"
+def has_chapter_bundle(db: Session, *, chapter_id: str) -> bool:
+    """Check if a chapter bundle exists using chapter UUID as scope."""
     exists = db.execute(
-        select(BundleRelease.id).where(BundleRelease.bundle_type == "chapter", BundleRelease.scope_id == scope).limit(1)
+        select(BundleRelease.id).where(BundleRelease.bundle_type == "chapter", BundleRelease.scope_id == chapter_id).limit(1)
     ).scalar_one_or_none()
     return exists is not None
 
@@ -160,10 +193,11 @@ def delete_course(db: Session, course_id: str, *, delete_bundles: bool = False) 
     course = get_course_or_404(db, course_id)
 
     if delete_bundles:
-        chapter_codes = db.execute(
-            select(CourseChapter.chapter_code).where(CourseChapter.course_id == course.id)
+        # Use chapter UUID as scope_id for bundle lookup
+        chapter_ids = db.execute(
+            select(CourseChapter.id).where(CourseChapter.course_id == course.id)
         ).scalars().all()
-        scopes = [f"{course_id}/{code}" for code in chapter_codes]
+        scopes = [str(cid) for cid in chapter_ids]
         if scopes:
             db.execute(
                 sql_delete(BundleRelease).where(
@@ -180,7 +214,7 @@ def delete_course(db: Session, course_id: str, *, delete_bundles: bool = False) 
 
 
 def delete_chapter(db: Session, *, course_id: str, chapter_code: str, delete_bundles: bool = False) -> None:
-    """Hard-delete a single chapter (and its progress records).
+    """Soft-delete a chapter by setting is_active=False.
 
     If delete_bundles=True also removes the chapter's BundleReleases.
     """
@@ -195,7 +229,7 @@ def delete_chapter(db: Session, *, course_id: str, chapter_code: str, delete_bun
         raise ApiError(status_code=404, code=ErrorCode.CHAPTER_NOT_FOUND, message="Chapter not found")
 
     if delete_bundles:
-        scope = f"{course_id}/{chapter_code}"
+        scope = str(chapter.id)
         db.execute(
             sql_delete(BundleRelease).where(
                 BundleRelease.bundle_type == "chapter",
@@ -203,6 +237,5 @@ def delete_chapter(db: Session, *, course_id: str, chapter_code: str, delete_bun
             )
         )
 
-    db.execute(sql_delete(ChapterProgress).where(ChapterProgress.chapter_id == chapter.id))
-    db.delete(chapter)
+    chapter.is_active = False
     db.commit()

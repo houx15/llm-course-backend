@@ -174,6 +174,7 @@ def delete_bundle_release(
 # ---------------------------------------------------------------------------
 
 _CHAPTER_SCOPE_RE = re.compile(r"^[A-Za-z0-9_-]+/[A-Za-z0-9_-]+$")
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
 
 
 async def _read_tar_gz(file: UploadFile) -> bytes:
@@ -215,15 +216,15 @@ async def _do_upload(db: Session, *, file: UploadFile, bundle_type: str, scope_i
 )
 async def upload_chapter_bundle(
     file: UploadFile = File(...),
-    scope_id: str = Form(..., description="course_id/chapter_code, e.g. PY101/ch0_pandas_basics"),
+    scope_id: str = Form(..., description="Chapter UUID or legacy course_id/chapter_code"),
     version: str = Form(...),
     db: Session = Depends(get_db),
 ) -> BundlePublishResponse:
-    if not _CHAPTER_SCOPE_RE.match(scope_id):
+    if not _UUID_RE.match(scope_id) and not _CHAPTER_SCOPE_RE.match(scope_id):
         raise ApiError(
             status_code=400,
             code="INVALID_SCOPE_ID",
-            message="scope_id must be in the form 'course_id/chapter_code' (alphanumeric, hyphens, underscores only)",
+            message="scope_id must be a chapter UUID or in the form 'course_id/chapter_code'",
         )
     return await _do_upload(db, file=file, bundle_type="chapter", scope_id=scope_id, version=version, is_mandatory=True)
 
