@@ -10,7 +10,6 @@ class AdminChapterCreate(BaseModel):
 
 
 class AdminCourseCreateRequest(BaseModel):
-    course_code: str = Field(min_length=1, max_length=64)
     title: str = Field(min_length=1, max_length=255)
     description: str = ""
     instructor: str = ""

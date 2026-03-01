@@ -49,7 +49,7 @@ def list_my_courses(current_user: CurrentUser, db: Session = Depends(get_db)) ->
 
 @router.post("/join", response_model=JoinCourseResponse)
 def join_course(payload: JoinCourseRequest, current_user: CurrentUser, db: Session = Depends(get_db)) -> JoinCourseResponse:
-    code = payload.course_code.strip().upper()
+    code = payload.invite_code.strip().upper()
     course = db.execute(
         select(Course).where(Course.invite_code == code, Course.is_active.is_(True))
     ).scalars().first()

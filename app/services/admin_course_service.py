@@ -26,8 +26,9 @@ def _generate_invite_code(db: Session, length: int = 6) -> str:
 
 def create_course_with_chapters(db: Session, payload: AdminCourseCreateRequest) -> Course:
     try:
+        invite_code = _generate_invite_code(db)
         course = Course(
-            course_code=payload.course_code.strip().upper(),
+            course_code=invite_code,
             title=payload.title.strip(),
             description=payload.description.strip(),
             instructor=payload.instructor.strip(),
@@ -36,7 +37,7 @@ def create_course_with_chapters(db: Session, payload: AdminCourseCreateRequest) 
             overview_gains=payload.overview_gains.strip(),
             overview_necessity=payload.overview_necessity.strip(),
             overview_journey=payload.overview_journey.strip(),
-            invite_code=_generate_invite_code(db),
+            invite_code=invite_code,
             is_active=payload.is_active,
             is_public=payload.is_public,
         )

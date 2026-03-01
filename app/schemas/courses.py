@@ -16,7 +16,7 @@ class CoursesMyResponse(BaseModel):
 
 
 class JoinCourseRequest(BaseModel):
-    course_code: str = Field(min_length=1, max_length=64)
+    invite_code: str = Field(min_length=1, max_length=8)
 
 
 class JoinCourseResponse(BaseModel):
