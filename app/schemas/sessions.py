@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class CreateSessionRequest(BaseModel):
     course_id: str | None = None
+    bundle_version: str | None = None
 
 
 class CreateSessionResponse(BaseModel):
@@ -68,6 +69,7 @@ class SessionSummaryItem(BaseModel):
     created_at: datetime
     last_active_at: datetime
     turn_count: int
+    bundle_version: str | None = None
 
 
 class ChapterSessionsResponse(BaseModel):

@@ -60,6 +60,7 @@ def create_session(
         user_id=current_user.id,
         chapter_id=chapter_id,
         course_id=payload.course_id,
+        bundle_version=payload.bundle_version,
         created_at=now,
         last_active_at=now,
     )
@@ -104,6 +105,7 @@ def list_chapter_sessions(
             created_at=s.created_at,
             last_active_at=s.last_active_at,
             turn_count=turn_count,
+            bundle_version=s.bundle_version,
         ))
 
     return ChapterSessionsResponse(sessions=items)

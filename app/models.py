@@ -155,6 +155,7 @@ class LearningSession(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     chapter_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     course_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    bundle_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     last_active_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

@@ -33,9 +33,19 @@ def upsert_chapter_progress(
     if not enrollment:
         raise ApiError(status_code=403, code=ErrorCode.COURSE_ACCESS_DENIED, message="Course not enrolled")
 
-    chapter = db.execute(
-        select(CourseChapter).where(CourseChapter.course_id == course.id, CourseChapter.chapter_code == payload.chapter_id)
-    ).scalars().first()
+    # Try UUID lookup first (desktop sends UUID as chapter_id), fall back to chapter_code
+    chapter = None
+    try:
+        chapter = db.get(CourseChapter, payload.chapter_id)
+    except Exception:
+        pass
+    if not chapter or str(chapter.course_id) != str(course.id):
+        chapter = db.execute(
+            select(CourseChapter).where(
+                CourseChapter.course_id == course.id,
+                CourseChapter.chapter_code == payload.chapter_id,
+            )
+        ).scalars().first()
     if not chapter:
         raise ApiError(status_code=404, code=ErrorCode.CHAPTER_NOT_FOUND, message="Chapter not found")
 
