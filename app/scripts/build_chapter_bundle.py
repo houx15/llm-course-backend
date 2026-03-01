@@ -195,7 +195,9 @@ def _build_manifest(
     final_required_experts = (
         required_experts
         if required_experts is not None
-        else chapter_meta.get("available_experts") or _infer_required_experts(prompt_source)
+        else chapter_meta.get("required_experts")
+        or chapter_meta.get("available_experts")
+        or _infer_required_experts(prompt_source)
     )
 
     return {
@@ -210,7 +212,6 @@ def _build_manifest(
             "title": final_title,
             "sort_order": chapter_meta.get("sort_order"),
             "intro_text": chapter_meta.get("intro_text", ""),
-            "colab_link": chapter_meta.get("colab_link", ""),
             "has_scripts": scripts_dir.is_dir(),
             "has_datasets": datasets_dir.is_dir(),
             "required_experts": final_required_experts or [],

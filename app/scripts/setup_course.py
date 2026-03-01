@@ -52,8 +52,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--course-code", required=True, help="Course code, e.g. SOC201")
     parser.add_argument("--server", required=True, help="Backend URL, e.g. http://47.93.151.131:10723")
     parser.add_argument("--admin-key", required=True, help="Admin API key")
-    parser.add_argument("--instructor", default="AI Tutor", help="Instructor name (default: AI Tutor)")
-    parser.add_argument("--semester", default="", help="Semester label, e.g. Spring 2025")
+    parser.add_argument("--instructor", default=None, help="Instructor name (overrides course_overview.json)")
+    parser.add_argument("--semester", default=None, help="Semester label (overrides course_overview.json)")
     parser.add_argument("--public", action="store_true", help="Mark course as public (auto-enroll on registration)")
     parser.add_argument("--dry-run", action="store_true", help="Print what would be done without calling the API")
     return parser.parse_args()
@@ -93,6 +93,8 @@ def main() -> int:
     overview = load_json(overview_path)
     course_title = overview.get("title") or course_dir.name
     description = overview.get("description", "")
+    instructor = args.instructor or overview.get("instructor", "") or "AI Tutor"
+    semester = args.semester if args.semester is not None else overview.get("semester", "")
     course_code = args.course_code.strip().upper()
     chapters = discover_chapters(course_dir)
 
@@ -123,8 +125,8 @@ def main() -> int:
         "course_code": course_code,
         "title": course_title,
         "description": description,
-        "instructor": args.instructor,
-        "semester": args.semester,
+        "instructor": instructor,
+        "semester": semester,
         "overview_experience": overview.get("overview", {}).get("experience", ""),
         "overview_gains": overview.get("overview", {}).get("gains", ""),
         "overview_necessity": overview.get("overview", {}).get("necessity", ""),
