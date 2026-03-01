@@ -82,34 +82,9 @@ def _copy_optional_dir(src: Optional[Path], dest: Path) -> bool:
     return True
 
 
-def _infer_ids(chapter_dir: Path) -> tuple[str, str]:
-    resolved = chapter_dir.resolve()
-    parts = resolved.parts
-    course_id = ""
-    chapter_code = resolved.name
-
-    # Choose the last valid courses/<course_id>/chapters/<chapter_code> pair.
-    # This avoids brittle matches when parent path segments also contain "courses"/"chapters".
-    selected_pair: Optional[tuple[str, str]] = None
-    for chapter_idx in range(len(parts) - 2, -1, -1):
-        if parts[chapter_idx] != "chapters":
-            continue
-        chapter_candidate = parts[chapter_idx + 1]
-        for course_idx in range(chapter_idx - 1, -1, -1):
-            if parts[course_idx] != "courses":
-                continue
-            if course_idx + 1 >= chapter_idx:
-                continue
-            selected_pair = (parts[course_idx + 1], chapter_candidate)
-            break
-        if selected_pair:
-            break
-
-    if selected_pair:
-        course_id, chapter_code = selected_pair
-    elif resolved.parent.name:
-        course_id = resolved.parent.name
-    return course_id, chapter_code
+def _infer_chapter_code(chapter_dir: Path) -> str:
+    """Infer chapter_code from directory name."""
+    return chapter_dir.resolve().name
 
 
 def _load_chapter_json(chapter_dir: Path) -> Dict[str, Any]:
@@ -175,20 +150,18 @@ def _build_manifest(
     chapter_dir: Path,
     version: str,
     scope_id: Optional[str],
-    course_id: Optional[str],
     chapter_code: Optional[str],
     title: Optional[str],
     required_experts: Optional[List[str]],
 ) -> Dict[str, Any]:
-    inferred_course_id, inferred_chapter_code = _infer_ids(chapter_dir)
+    inferred_chapter_code = _infer_chapter_code(chapter_dir)
 
     # Load chapter.json metadata (highest priority for title, sort_order, etc.)
     chapter_meta = _load_chapter_json(chapter_dir)
 
-    final_course_id = course_id or chapter_meta.get("course_id") or inferred_course_id
     final_chapter_code = chapter_code or chapter_meta.get("chapter_code") or inferred_chapter_code
     final_title = title or chapter_meta.get("title") or _extract_title(prompt_source, final_chapter_code)
-    final_scope_id = scope_id or f"{final_course_id}/{final_chapter_code}".strip("/")
+    final_scope_id = scope_id or final_chapter_code
 
     scripts_dir = stage_root / "scripts"
     datasets_dir = stage_root / "datasets"
@@ -207,7 +180,6 @@ def _build_manifest(
         "version": version,
         "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "chapter": {
-            "course_id": final_course_id,
             "chapter_code": final_chapter_code,
             "title": final_title,
             "sort_order": chapter_meta.get("sort_order"),
@@ -225,7 +197,6 @@ def build_chapter_bundle(
     output_dir: Path,
     version: str = "1.0.0",
     scope_id: Optional[str] = None,
-    course_id: Optional[str] = None,
     chapter_code: Optional[str] = None,
     title: Optional[str] = None,
     scripts_dir: Optional[Path] = None,
@@ -257,7 +228,6 @@ def build_chapter_bundle(
             chapter_dir=chapter_dir,
             version=version,
             scope_id=scope_id,
-            course_id=course_id,
             chapter_code=chapter_code,
             title=title,
             required_experts=required_experts,
@@ -283,8 +253,7 @@ def _parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--chapter-dir", required=True, type=Path, help="Chapter directory path")
     parser.add_argument("--output", required=True, type=Path, help="Output directory")
     parser.add_argument("--version", default="1.0.0", help="Bundle semantic version")
-    parser.add_argument("--scope-id", default=None, help="Override manifest scope_id")
-    parser.add_argument("--course-id", default=None, help="Override chapter.course_id")
+    parser.add_argument("--scope-id", default=None, help="Override manifest scope_id (chapter UUID)")
     parser.add_argument("--chapter-code", default=None, help="Override chapter.chapter_code")
     parser.add_argument("--title", default=None, help="Override chapter title")
     parser.add_argument("--scripts-dir", default=None, type=Path, help="Optional scripts source override")
@@ -307,7 +276,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         output_dir=args.output,
         version=args.version,
         scope_id=args.scope_id,
-        course_id=args.course_id,
         chapter_code=args.chapter_code,
         title=args.title,
         scripts_dir=args.scripts_dir,

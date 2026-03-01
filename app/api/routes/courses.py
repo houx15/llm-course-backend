@@ -50,16 +50,11 @@ def list_my_courses(current_user: CurrentUser, db: Session = Depends(get_db)) ->
 @router.post("/join", response_model=JoinCourseResponse)
 def join_course(payload: JoinCourseRequest, current_user: CurrentUser, db: Session = Depends(get_db)) -> JoinCourseResponse:
     code = payload.course_code.strip().upper()
-    # Try invite_code first, then course_code
     course = db.execute(
         select(Course).where(Course.invite_code == code, Course.is_active.is_(True))
     ).scalars().first()
     if not course:
-        course = db.execute(
-            select(Course).where(Course.course_code == code, Course.is_active.is_(True))
-        ).scalars().first()
-    if not course:
-        raise ApiError(status_code=404, code=ErrorCode.COURSE_NOT_FOUND, message="Course not found")
+        raise ApiError(status_code=404, code=ErrorCode.COURSE_NOT_FOUND, message="Invalid invite code")
 
     enrollment = db.execute(
         select(Enrollment).where(Enrollment.user_id == current_user.id, Enrollment.course_id == course.id)

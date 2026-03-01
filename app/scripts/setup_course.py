@@ -49,7 +49,7 @@ def parse_args() -> argparse.Namespace:
         epilog=__doc__,
     )
     parser.add_argument("--course-dir", required=True, type=Path, help="Path to course directory")
-    parser.add_argument("--course-code", required=True, help="Course code, e.g. SOC201")
+    parser.add_argument("--course-code", default=None, help="Course code (deprecated; auto-generated from dir name if omitted)")
     parser.add_argument("--server", required=True, help="Backend URL, e.g. http://47.93.151.131:10723")
     parser.add_argument("--admin-key", required=True, help="Admin API key")
     parser.add_argument("--instructor", default=None, help="Instructor name (overrides course_overview.json)")
@@ -96,7 +96,7 @@ def main() -> int:
     instructor = args.instructor or overview.get("instructor", "") or "AI Tutor"
     semester = args.semester if args.semester is not None else overview.get("semester", "")
     is_public = args.public if args.public is not None else overview.get("is_public", False)
-    course_code = args.course_code.strip().upper()
+    course_code = (args.course_code.strip().upper() if args.course_code else course_dir.name.upper())
     chapters = discover_chapters(course_dir)
 
     print(f"Course : {course_code} — {course_title}")
