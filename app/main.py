@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.api.routes import admin_bundles, admin_courses, analytics, auth, bugs, courses, invite, me, progress, sessions, updates, upload, waitlist
+from app.api.routes import admin_bundles, admin_courses, admin_users, analytics, auth, bugs, courses, invite, me, progress, sessions, updates, upload, waitlist
 from app.api.routes.admin_bundles import experts_router
 from app.core.config import get_settings
 from app.core.errors import ApiError
@@ -70,4 +70,5 @@ app.include_router(invite.router)
 app.include_router(waitlist.router)
 app.include_router(admin_bundles.router)
 app.include_router(admin_courses.router)
+app.include_router(admin_users.router)
 app.include_router(experts_router)
