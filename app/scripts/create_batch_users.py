@@ -53,8 +53,9 @@ def load_users_from_csv(csv_path: Path, domain: str) -> list[dict[str, Any]]:
                 print(f"Error: row {i} ({username}): password missing or < 8 chars", file=sys.stderr)
                 return []
             invite_codes = [c.strip().upper() for c in invite_codes_raw.split(";") if c.strip()] if invite_codes_raw else []
+            email = username if "@" in username else f"{username}@{domain}"
             users.append({
-                "email": f"{username}@{domain}",
+                "email": email,
                 "display_name": display_name or username,
                 "password": password,
                 "invite_codes": invite_codes,
