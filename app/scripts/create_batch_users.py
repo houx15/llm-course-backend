@@ -87,23 +87,37 @@ def main() -> int:
         print("\n[dry-run] No API calls made.")
         return 0
 
-    payload = {"users": users}
+    # Send in batches of 10 to avoid server timeout (bcrypt is slow)
+    BATCH_SIZE = 10
+    all_results: list[dict[str, Any]] = []
 
-    with httpx.Client(timeout=30.0) as client:
-        resp = client.post(
-            f"{server}/v1/admin/users/batch",
-            json=payload,
-            headers={"X-Admin-Key": args.admin_key},
-        )
+    with httpx.Client(timeout=120.0) as client:
+        for i in range(0, len(users), BATCH_SIZE):
+            chunk = users[i : i + BATCH_SIZE]
+            batch_num = i // BATCH_SIZE + 1
+            total_batches = (len(users) + BATCH_SIZE - 1) // BATCH_SIZE
+            print(f"\nBatch {batch_num}/{total_batches} ({len(chunk)} users)...")
 
-    if resp.status_code != 201:
-        print(f"Error: HTTP {resp.status_code}: {resp.text[:300]}", file=sys.stderr)
-        return 1
+            resp = client.post(
+                f"{server}/v1/admin/users/batch",
+                json={"users": chunk},
+                headers={"X-Admin-Key": args.admin_key},
+            )
 
-    data = resp.json()
-    results = data.get("results", [])
-    print(f"\nDone. {len(results)} users processed.\n")
-    for r in results:
+            if resp.status_code != 201:
+                print(f"Error: HTTP {resp.status_code}: {resp.text[:300]}", file=sys.stderr)
+                return 1
+
+            data = resp.json()
+            all_results.extend(data.get("results", []))
+
+            # Sleep between batches to let the server breathe
+            if i + BATCH_SIZE < len(users):
+                import time
+                time.sleep(1)
+
+    print(f"\nDone. {len(all_results)} users processed.\n")
+    for r in all_results:
         action = "CREATED" if r["created"] else "UPDATED"
         print(f"  [{action}] {r['email']} ({r['display_name']})")
         if r["enrolled_in"]:
