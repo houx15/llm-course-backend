@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.admin_auth import require_admin_key
@@ -94,3 +94,78 @@ def batch_create_users(payload: AdminBatchCreateRequest, db: Session = Depends(g
     db.commit()
 
     return AdminBatchCreateResponse(results=results, total=len(results))
+
+
+# ── List users ────────────────────────────────────────────────────────────
+
+
+class AdminUserSummary(BaseModel):
+    id: str
+    email: str
+    display_name: str
+    status: str
+
+
+class AdminUserListResponse(BaseModel):
+    users: list[AdminUserSummary]
+    total: int
+
+
+@router.get("", response_model=AdminUserListResponse)
+def list_users(
+    status: str = Query(default="active", description="Filter by user status"),
+    db: Session = Depends(get_db),
+) -> AdminUserListResponse:
+    stmt = select(User).where(User.status == status).order_by(User.created_at)
+    users = db.execute(stmt).scalars().all()
+    return AdminUserListResponse(
+        users=[
+            AdminUserSummary(
+                id=str(u.id), email=u.email, display_name=u.display_name or "", status=u.status
+            )
+            for u in users
+        ],
+        total=len(users),
+    )
+
+
+# ── Bulk enroll existing users to a course ────────────────────────────────
+
+
+class BulkEnrollRequest(BaseModel):
+    course_id: str
+    user_ids: list[str] | None = None  # None = all active users
+
+
+class BulkEnrollResponse(BaseModel):
+    enrolled: int
+    already_enrolled: int
+    course_title: str
+
+
+@router.post("/bulk-enroll", response_model=BulkEnrollResponse)
+def bulk_enroll(payload: BulkEnrollRequest, db: Session = Depends(get_db)) -> BulkEnrollResponse:
+    course = db.get(Course, payload.course_id)
+    if not course:
+        from app.core.errors import ApiError, ErrorCode
+        raise ApiError(status_code=404, code=ErrorCode.COURSE_NOT_FOUND, message="Course not found")
+
+    if payload.user_ids:
+        users = db.execute(select(User).where(User.id.in_(payload.user_ids))).scalars().all()
+    else:
+        users = db.execute(select(User).where(User.status == "active")).scalars().all()
+
+    enrolled = 0
+    already = 0
+    for user in users:
+        existing = db.execute(
+            select(Enrollment).where(Enrollment.user_id == user.id, Enrollment.course_id == course.id)
+        ).scalars().first()
+        if existing:
+            already += 1
+        else:
+            db.add(Enrollment(user_id=user.id, course_id=course.id, status="active"))
+            enrolled += 1
+
+    db.commit()
+    return BulkEnrollResponse(enrolled=enrolled, already_enrolled=already, course_title=course.title)
