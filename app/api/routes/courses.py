@@ -16,6 +16,7 @@ from app.schemas.courses import (
     CoursesMyResponse,
     JoinCourseRequest,
     JoinCourseResponse,
+    PartItem,
 )
 
 router = APIRouter(prefix="/v1/courses", tags=["courses"])
@@ -107,6 +108,8 @@ def list_course_chapters(course_id: str, current_user: CurrentUser, db: Session 
         .where(and_(CourseChapter.course_id == course_id, CourseChapter.is_active.is_(True)))
         .order_by(CourseChapter.sort_order.asc())
     ).scalars().all()
+    course = db.get(Course, course_id)
+
     if not chapters_all:
         return CourseChaptersResponse(course_id=course_id, chapters=[])
 
@@ -168,4 +171,8 @@ def list_course_chapters(course_id: str, current_user: CurrentUser, db: Session 
             )
         )
 
-    return CourseChaptersResponse(course_id=course_id, chapters=output)
+    parts_data = None
+    if course and course.parts:
+        parts_data = [PartItem(title=p["title"], chapter_ids=p.get("chapter_ids", [])) for p in course.parts]
+
+    return CourseChaptersResponse(course_id=course_id, chapters=output, parts=parts_data)

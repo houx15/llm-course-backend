@@ -14,6 +14,7 @@ from app.schemas.admin_courses import (
     AdminCourseSummaryResponse,
     AdminCourseUpdateRequest,
     AdminCourseWithChaptersResponse,
+    AdminUpdatePartsRequest,
 )
 from app.services.admin_course_service import (
     create_course_with_chapters,
@@ -46,6 +47,7 @@ def _course_response(course: Course) -> AdminCourseResponse:
         overview_journey=course.overview_journey,
         is_active=course.is_active,
         is_public=course.is_public,
+        parts=course.parts,
         created_at=course.created_at.isoformat(),
     )
 
@@ -157,3 +159,20 @@ def delete_chapter_endpoint(
 ) -> Response:
     delete_chapter(db, course_id=course_id, chapter_code=chapter_code, delete_bundles=delete_bundles)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/{course_id}/parts", response_model=AdminCourseWithChaptersResponse)
+def update_course_parts(
+    course_id: str,
+    payload: AdminUpdatePartsRequest,
+    db: Session = Depends(get_db),
+) -> AdminCourseWithChaptersResponse:
+    course = get_course_or_404(db, course_id)
+    course.parts = [p.model_dump() for p in payload.parts]
+    db.commit()
+    db.refresh(course)
+    chapters = list_course_chapters_with_bundle_flag(db, course_id)
+    return AdminCourseWithChaptersResponse(
+        **_course_response(course).model_dump(),
+        chapters=[_chapter_response(chapter, has_bundle=has_bundle) for chapter, has_bundle in chapters],
+    )

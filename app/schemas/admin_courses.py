@@ -37,6 +37,7 @@ class AdminCourseResponse(BaseModel):
     overview_journey: str = ""
     is_active: bool
     is_public: bool
+    parts: list[dict] | None = None
     created_at: str
 
 
@@ -81,6 +82,15 @@ class AdminChapterIntroUpdateRequest(BaseModel):
 
 class AdminCourseSummaryResponse(AdminCourseResponse):
     chapter_count: int
+
+
+class AdminPartItem(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    chapter_ids: list[str]
+
+
+class AdminUpdatePartsRequest(BaseModel):
+    parts: list[AdminPartItem]
 
 
 class AdminCourseListResponse(BaseModel):

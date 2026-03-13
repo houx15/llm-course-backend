@@ -52,6 +52,12 @@ class ChapterItem(BaseModel):
     bundle_size_bytes: int | None = None
 
 
+class PartItem(BaseModel):
+    title: str
+    chapter_ids: list[str]
+
+
 class CourseChaptersResponse(BaseModel):
     course_id: str
     chapters: list[ChapterItem]
+    parts: list[PartItem] | None = None
