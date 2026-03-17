@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:15432/llm_course"
 
     jwt_secret: str = "change-me"
-    access_token_expire_seconds: int = 3600
+    access_token_expire_seconds: int = 30 * 24 * 3600
     refresh_token_expire_seconds: int = 30 * 24 * 3600
     email_code_expire_seconds: int = 300
     dev_fixed_email_code: str = ""
