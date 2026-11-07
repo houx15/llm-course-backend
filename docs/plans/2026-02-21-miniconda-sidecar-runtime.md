@@ -8,6 +8,21 @@
 
 **Tech Stack:** Electron (Node.js), React 18, TypeScript, Python 3.12, Miniconda, conda, pip.
 
+## Admin credentials
+
+The commands below read `ADMIN_API_KEY` from your environment. Obtain the value
+from the deployment's secret store and export it before running the commands. For
+an interactive Bash session, enter it without echoing it or saving it in shell
+history:
+
+```bash
+read -r -s -p "Admin API key: " ADMIN_API_KEY
+printf '\n'
+export ADMIN_API_KEY
+```
+
+Never put a real admin key in this document or commit it to the repository.
+
 ---
 
 ## Context
@@ -249,7 +264,7 @@ git commit -m "feat: add build_sidecar_code_bundle.py for platform-agnostic side
 
 ```bash
 curl -X POST \
-  -H "X-Admin-Key: 12askd0e8712nkjzs9wfn1" \
+  -H "X-Admin-Key: ${ADMIN_API_KEY:?Set ADMIN_API_KEY in your environment}" \
   -F "file=@/tmp/sidecar_code_0.2.0.tar.gz" \
   -F "bundle_type=python_runtime" \
   -F "scope_id=core" \

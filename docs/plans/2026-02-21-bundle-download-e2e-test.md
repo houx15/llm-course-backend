@@ -8,13 +8,28 @@
 
 **Tech Stack:** Python/FastAPI (backend + sidecar), TypeScript/Electron (desktop), pytest integration tests, curl for manual verification.
 
+## Admin credentials
+
+The commands below read `ADMIN_API_KEY` from your environment. Obtain the value
+from the deployment's secret store and export it before running the commands. For
+an interactive Bash session, enter it without echoing it or saving it in shell
+history:
+
+```bash
+read -r -s -p "Admin API key: " ADMIN_API_KEY
+printf '\n'
+export ADMIN_API_KEY
+```
+
+Never put a real admin key in this document or commit it to the repository.
+
 ---
 
 ## Context & Current State
 
 | What | Status |
 |------|--------|
-| Backend running at `47.93.151.131:10723`, admin key `12askd0e8712nkjzs9wfn1` | ✅ Running |
+| Backend running at `47.93.151.131:10723`, admin key supplied via `ADMIN_API_KEY` | ✅ Running |
 | Test student `student@example.com` / `StrongPass123` enrolled in SOC101 | ✅ Done |
 | Course `a2159fb9-5973-4cda-be1c-59a190a91d10`, chapter `ch1_intro` | ✅ In DB |
 | Admin bundle upload API (`POST /v1/admin/bundles/upload`) stores to `./uploads/` when OSS disabled | ✅ Exists |
@@ -59,7 +74,7 @@ def test_resolve_local_artifact_returns_http_url(client, integration_enabled):
 
 ```bash
 cd llm-course-backend
-RUN_INTEGRATION=1 BASE_URL=http://47.93.151.131:10723 ADMIN_API_KEY=12askd0e8712nkjzs9wfn1 \
+RUN_INTEGRATION=1 BASE_URL=http://47.93.151.131:10723 ADMIN_API_KEY="${ADMIN_API_KEY:?Set ADMIN_API_KEY in your environment}" \
   uv run pytest -q tests/test_admin_bundles.py::test_resolve_local_artifact_returns_http_url -v
 ```
 Expected: FAIL — `url` will be `/uploads/...` which doesn't start with http
@@ -105,7 +120,7 @@ def resolve_download_url(self, artifact: str, expires_seconds: int | None = None
 **Step 5: Run test to verify it passes**
 
 ```bash
-RUN_INTEGRATION=1 BASE_URL=http://47.93.151.131:10723 ADMIN_API_KEY=12askd0e8712nkjzs9wfn1 \
+RUN_INTEGRATION=1 BASE_URL=http://47.93.151.131:10723 ADMIN_API_KEY="${ADMIN_API_KEY:?Set ADMIN_API_KEY in your environment}" \
   uv run pytest -q tests/test_admin_bundles.py::test_resolve_local_artifact_returns_http_url -v
 ```
 Expected: PASS
@@ -179,7 +194,7 @@ def test_check_app_returns_python_runtime(client, integration_enabled):
 **Step 2: Run to verify failure**
 
 ```bash
-RUN_INTEGRATION=1 BASE_URL=http://47.93.151.131:10723 ADMIN_API_KEY=12askd0e8712nkjzs9wfn1 \
+RUN_INTEGRATION=1 BASE_URL=http://47.93.151.131:10723 ADMIN_API_KEY="${ADMIN_API_KEY:?Set ADMIN_API_KEY in your environment}" \
   uv run pytest -q tests/test_admin_bundles.py::test_check_app_returns_python_runtime -v
 ```
 Expected: FAIL — no `python_runtime` entries in response
@@ -225,7 +240,7 @@ if pr_descriptor:
 **Step 5: Run test to verify pass**
 
 ```bash
-RUN_INTEGRATION=1 BASE_URL=http://47.93.151.131:10723 ADMIN_API_KEY=12askd0e8712nkjzs9wfn1 \
+RUN_INTEGRATION=1 BASE_URL=http://47.93.151.131:10723 ADMIN_API_KEY="${ADMIN_API_KEY:?Set ADMIN_API_KEY in your environment}" \
   uv run pytest -q tests/test_admin_bundles.py::test_check_app_returns_python_runtime -v
 ```
 Expected: PASS
@@ -359,7 +374,7 @@ def test_upload_chapter_bundle_is_downloadable(client, integration_enabled):
 **Step 2: Run to verify failure** (fails because sha256 field may be missing or URL not http)
 
 ```bash
-RUN_INTEGRATION=1 BASE_URL=http://47.93.151.131:10723 ADMIN_API_KEY=12askd0e8712nkjzs9wfn1 \
+RUN_INTEGRATION=1 BASE_URL=http://47.93.151.131:10723 ADMIN_API_KEY="${ADMIN_API_KEY:?Set ADMIN_API_KEY in your environment}" \
   uv run pytest -q tests/test_admin_bundles.py::test_upload_chapter_bundle_is_downloadable -v
 ```
 
@@ -371,7 +386,7 @@ Check `BundlePublishResponse` schema in `llm-course-backend/app/schemas/admin_bu
 
 Once Task 1 (BASE_URL fix) is deployed and sha256 is in response:
 ```bash
-RUN_INTEGRATION=1 BASE_URL=http://47.93.151.131:10723 ADMIN_API_KEY=12askd0e8712nkjzs9wfn1 \
+RUN_INTEGRATION=1 BASE_URL=http://47.93.151.131:10723 ADMIN_API_KEY="${ADMIN_API_KEY:?Set ADMIN_API_KEY in your environment}" \
   uv run pytest -q tests/test_admin_bundles.py::test_upload_chapter_bundle_is_downloadable -v
 ```
 Expected: PASS
@@ -380,17 +395,17 @@ Expected: PASS
 
 ```bash
 # Delete existing fake chapter bundle first
-BUNDLE_ID=$(curl -s -H "X-Admin-Key: 12askd0e8712nkjzs9wfn1" \
+BUNDLE_ID=$(curl -s -H "X-Admin-Key: ${ADMIN_API_KEY:?Set ADMIN_API_KEY in your environment}" \
   "http://47.93.151.131:10723/v1/admin/bundles?bundle_type=chapter" \
   | python3 -c "import sys,json; bundles=json.load(sys.stdin)['bundles']; \
     [print(b['id']) for b in bundles if b['scope_id'].endswith('/ch1_intro')]")
 echo "Deleting bundle: $BUNDLE_ID"
-curl -X DELETE -H "X-Admin-Key: 12askd0e8712nkjzs9wfn1" \
+curl -X DELETE -H "X-Admin-Key: ${ADMIN_API_KEY:?Set ADMIN_API_KEY in your environment}" \
   "http://47.93.151.131:10723/v1/admin/bundles/$BUNDLE_ID"
 
 # Upload the real bundle built in Task 3
 curl -X POST \
-  -H "X-Admin-Key: 12askd0e8712nkjzs9wfn1" \
+  -H "X-Admin-Key: ${ADMIN_API_KEY:?Set ADMIN_API_KEY in your environment}" \
   -F "file=@/tmp/ch1_intro_bundle.tar.gz" \
   -F "bundle_type=chapter" \
   -F "scope_id=a2159fb9-5973-4cda-be1c-59a190a91d10/ch1_intro" \
@@ -554,7 +569,7 @@ Expected: `/tmp/sidecar_bundle_0.1.0.tar.gz` with sha256 printed.
 
 ```bash
 curl -X POST \
-  -H "X-Admin-Key: 12askd0e8712nkjzs9wfn1" \
+  -H "X-Admin-Key: ${ADMIN_API_KEY:?Set ADMIN_API_KEY in your environment}" \
   -F "file=@/tmp/sidecar_bundle_0.1.0.tar.gz" \
   -F "bundle_type=python_runtime" \
   -F "scope_id=dev-local" \
